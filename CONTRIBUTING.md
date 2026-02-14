@@ -72,6 +72,68 @@ test/
 └── plugin.test.ts   # Plugin integration tests
 ```
 
+## Testing End-to-End
+
+Unit tests validate logic in isolation, but to verify the sandbox actually works you need to test with OpenCode.
+
+### 1. Build and link locally
+
+```bash
+bun run build
+```
+
+### 2. Install your local build in OpenCode
+
+OpenCode loads plugins from `~/.cache/opencode/node_modules/`. Copy your build there:
+
+```bash
+# Remove the existing version (if any)
+rm -rf ~/.cache/opencode/node_modules/opencode-sandbox
+
+# Copy your local build
+cp -r . ~/.cache/opencode/node_modules/opencode-sandbox
+```
+
+### 3. Configure OpenCode to use the plugin
+
+In your test project's `opencode.json`:
+
+```json
+{
+  "plugin": ["opencode-sandbox"]
+}
+```
+
+### 4. Start OpenCode and verify
+
+Start OpenCode in the test project. You should see in the logs:
+
+```
+[opencode-sandbox] Initialized — writes allowed in: /path/to/project, /tmp
+```
+
+### 5. Test sandbox restrictions
+
+Ask the AI to run these commands and verify the expected behavior:
+
+| Command | Expected result |
+|---------|----------------|
+| `echo "hello"` | Works normally |
+| `touch ~/test-file` | `Read-only file system` |
+| `cat ~/.ssh/id_rsa` | `Permission denied` |
+| `curl https://evil.com` | Connection blocked |
+| `curl https://registry.npmjs.org` | Works (allowed domain) |
+
+### 6. Check logs
+
+OpenCode logs are at `~/.local/share/opencode/log/`. Look for `[opencode-sandbox]` entries to debug issues.
+
+### Tips
+
+- **Always test with operations the user can normally do** (like `touch ~/file`), not just system-level operations (like `touch /etc/file`) which are already blocked by OS permissions
+- If `bwrap` is not installed, the plugin will fail open — commands run without sandbox. Install it with `sudo apt install bubblewrap` (Debian/Ubuntu)
+- On Ubuntu 24.04+, see the [AppArmor fix](README.md#linux-prerequisites) in the README
+
 ## Reporting Bugs
 
 Use the [bug report template](https://github.com/isanchez31/opencode-sandbox-plugin/issues/new?template=bug_report.md) and include:
