@@ -64,11 +64,12 @@ export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
       if (input.tool !== "bash") return
 
       const text = output.output ?? ""
-      const exit = output.metadata?.exit
+      // Strip the benign bwrap loopback warning before checking for real blocks
+      const textWithoutBwrapWarning = text.replace(/bwrap: loopback: [^\n]*/g, "")
       if (
-        exit !== 0 &&
-        (text.includes("Operation not permitted") ||
-        text.includes("Connection blocked by network allowlist"))
+        textWithoutBwrapWarning.includes("Operation not permitted") ||
+        textWithoutBwrapWarning.includes("Permission denied") ||
+        textWithoutBwrapWarning.includes("Connection blocked by network allowlist")
       ) {
         const message =
           "⚠️ [opencode-sandbox] Command blocked or partially blocked by sandbox restrictions. " +
