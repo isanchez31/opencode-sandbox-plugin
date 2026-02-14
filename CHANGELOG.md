@@ -1,0 +1,82 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.1.16] - 2026-02-14
+
+### Changed
+
+- Updated README with AppArmor fix, sandbox examples, and architecture section
+
+## [0.1.15] - 2026-02-14
+
+### Security
+
+- Reject unsafe broad write paths like `/` from worktree to prevent sandbox bypass
+
+## [0.1.14] - 2026-02-14
+
+### Changed
+
+- Remove block detection heuristics — AI now interprets sandbox errors directly from raw output
+
+## [0.1.13] - 2026-02-14
+
+### Added
+
+- CI workflow for automated testing and build
+- Automated npm publish workflow with OIDC Trusted Publishing
+- Contribution guidelines, code of conduct, and issue/PR templates
+
+### Fixed
+
+- Simplified publish workflow for OIDC compatibility
+
+## [0.1.4] - 2026-02-14
+
+### Added
+
+- Clean UI display for sandboxed commands
+
+## [0.1.3] - 2026-02-14
+
+### Added
+
+- Show clean annotation in UI while keeping full output for AI
+
+## [0.1.2] - 2026-02-14
+
+### Fixed
+
+- Mutate `metadata.output` so TUI displays annotation correctly
+
+## [0.1.1] - 2026-02-14
+
+### Fixed
+
+- Normalize repository URL to `git+` protocol
+- Add package metadata and fix LICENSE copyright
+
+## [0.1.0] - 2026-02-14
+
+### Added
+
+- Initial release
+- Sandbox plugin with command wrapping hooks (`tool.execute.before` / `tool.execute.after`)
+- Config resolution from environment variable, `.opencode/sandbox.json`, or defaults
+- Filesystem restrictions: deny-read for sensitive dirs, allow-write for project + `/tmp`
+- Network allowlist with proxy-based domain filtering
+- Unit tests for config and plugin hooks
+
+[0.1.16]: https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.15...v0.1.16
+[0.1.15]: https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.14...v0.1.15
+[0.1.14]: https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.13...v0.1.14
+[0.1.13]: https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.4...v0.1.13
+[0.1.4]: https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.3...v0.1.4
+[0.1.3]: https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.2...v0.1.3
+[0.1.2]: https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/isanchez31/opencode-sandbox-plugin/releases/tag/v0.1.0

@@ -1,6 +1,6 @@
-import type { Plugin } from "@opencode-ai/plugin"
 import { SandboxManager } from "@anthropic-ai/sandbox-runtime"
-import { resolveConfig, loadConfig } from "./config"
+import type { Plugin } from "@opencode-ai/plugin"
+import { loadConfig, resolveConfig } from "./config"
 
 export type { SandboxPluginConfig } from "./config"
 
@@ -11,8 +11,8 @@ export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
   }
 
   if (
-    process.env["OPENCODE_DISABLE_SANDBOX"] === "1" ||
-    process.env["OPENCODE_DISABLE_SANDBOX"] === "true"
+    process.env.OPENCODE_DISABLE_SANDBOX === "1" ||
+    process.env.OPENCODE_DISABLE_SANDBOX === "true"
   ) {
     return {}
   }
@@ -60,7 +60,7 @@ export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
       }
     },
 
-    "tool.execute.after": async (input, output) => {
+    "tool.execute.after": async (input, _output) => {
       if (input.tool !== "bash") return
 
       // Restore original command so the UI shows it instead of the bwrap wrapper

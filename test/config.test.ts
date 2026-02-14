@@ -1,10 +1,10 @@
-import { describe, test, expect, beforeEach, afterAll } from "bun:test"
-import { resolveConfig, loadConfig, type SandboxPluginConfig } from "../src/config"
-import os from "os"
-import path from "path"
-import fs from "fs/promises"
+import { afterAll, beforeEach, describe, expect, test } from "bun:test"
+import fs from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
+import { loadConfig, resolveConfig, type SandboxPluginConfig } from "../src/config"
 
-const PROJECT_DIR = "/tmp/test-project-sandbox-" + process.pid
+const PROJECT_DIR = `/tmp/test-project-sandbox-${process.pid}`
 const WORKTREE = PROJECT_DIR
 
 describe("resolveConfig", () => {
@@ -14,9 +14,7 @@ describe("resolveConfig", () => {
     // Filesystem
     expect(config.filesystem?.denyRead).toContain(path.join(os.homedir(), ".ssh"))
     expect(config.filesystem?.denyRead).toContain(path.join(os.homedir(), ".gnupg"))
-    expect(config.filesystem?.denyRead).toContain(
-      path.join(os.homedir(), ".aws/credentials"),
-    )
+    expect(config.filesystem?.denyRead).toContain(path.join(os.homedir(), ".aws/credentials"))
     expect(config.filesystem?.allowWrite).toContain(PROJECT_DIR)
     expect(config.filesystem?.allowWrite).toContain(os.tmpdir())
     expect(config.filesystem?.denyWrite).toEqual([])
@@ -114,7 +112,7 @@ describe("resolveConfig", () => {
 
 describe("loadConfig", () => {
   beforeEach(async () => {
-    delete process.env["OPENCODE_SANDBOX_CONFIG"]
+    delete process.env.OPENCODE_SANDBOX_CONFIG
     await fs.rm(PROJECT_DIR, { recursive: true, force: true })
     await fs.mkdir(path.join(PROJECT_DIR, ".opencode"), { recursive: true })
   })
@@ -130,7 +128,7 @@ describe("loadConfig", () => {
   })
 
   test("loads config from OPENCODE_SANDBOX_CONFIG env var", async () => {
-    process.env["OPENCODE_SANDBOX_CONFIG"] = JSON.stringify({
+    process.env.OPENCODE_SANDBOX_CONFIG = JSON.stringify({
       disabled: false,
       filesystem: { denyRead: ["/secret"] },
     })
@@ -140,7 +138,7 @@ describe("loadConfig", () => {
   })
 
   test("env var takes priority over file", async () => {
-    process.env["OPENCODE_SANDBOX_CONFIG"] = JSON.stringify({
+    process.env.OPENCODE_SANDBOX_CONFIG = JSON.stringify({
       filesystem: { denyRead: ["/from-env"] },
     })
     await fs.writeFile(
@@ -163,16 +161,13 @@ describe("loadConfig", () => {
   })
 
   test("handles invalid JSON in env var gracefully", async () => {
-    process.env["OPENCODE_SANDBOX_CONFIG"] = "not-valid-json"
+    process.env.OPENCODE_SANDBOX_CONFIG = "not-valid-json"
     const config = await loadConfig(PROJECT_DIR)
     expect(config).toEqual({})
   })
 
   test("handles invalid JSON in file gracefully", async () => {
-    await fs.writeFile(
-      path.join(PROJECT_DIR, ".opencode", "sandbox.json"),
-      "broken{json",
-    )
+    await fs.writeFile(path.join(PROJECT_DIR, ".opencode", "sandbox.json"), "broken{json")
     const config = await loadConfig(PROJECT_DIR)
     expect(config).toEqual({})
   })

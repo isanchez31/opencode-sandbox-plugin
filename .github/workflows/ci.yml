@@ -7,6 +7,19 @@ on:
     branches: [main]
 
 jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install
+
+      - run: bun run check
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -18,6 +31,6 @@ jobs:
 
       - run: bun install
 
-      - run: bun test
+      - run: bun test --coverage
 
       - run: bun run build

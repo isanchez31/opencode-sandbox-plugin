@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from "bun:test"
+import { beforeEach, describe, expect, mock, test } from "bun:test"
 
 // Mock the SandboxManager before importing the plugin
 const mockInitialize = mock(() => Promise.resolve())
@@ -28,8 +28,8 @@ describe("SandboxPlugin", () => {
   beforeEach(() => {
     mockInitialize.mockClear()
     mockWrapWithSandbox.mockClear()
-    delete process.env["OPENCODE_DISABLE_SANDBOX"]
-    delete process.env["OPENCODE_SANDBOX_CONFIG"]
+    delete process.env.OPENCODE_DISABLE_SANDBOX
+    delete process.env.OPENCODE_SANDBOX_CONFIG
   })
 
   test("initializes sandbox on plugin load", async () => {
@@ -42,7 +42,7 @@ describe("SandboxPlugin", () => {
   })
 
   test("returns empty hooks when OPENCODE_DISABLE_SANDBOX=1", async () => {
-    process.env["OPENCODE_DISABLE_SANDBOX"] = "1"
+    process.env.OPENCODE_DISABLE_SANDBOX = "1"
     const hooks = await SandboxPlugin(makeCtx())
     expect(hooks["tool.execute.before"]).toBeUndefined()
     expect(mockInitialize).not.toHaveBeenCalled()
@@ -55,7 +55,7 @@ describe("SandboxPlugin", () => {
     const input = { tool: "bash", sessionID: "s1", callID: "c1" }
     const output = { args: { command: "ls -la" } }
 
-    await hooks["tool.execute.before"]!(input, output)
+    await hooks["tool.execute.before"]?.(input, output)
 
     expect(mockWrapWithSandbox).toHaveBeenCalledWith("ls -la")
     expect(output.args.command).toBe("srt-wrapped: ls -la")
@@ -68,7 +68,7 @@ describe("SandboxPlugin", () => {
     const input = { tool: "read", sessionID: "s1", callID: "c1" }
     const output = { args: { filePath: "/etc/hosts" } }
 
-    await hooks["tool.execute.before"]!(input, output)
+    await hooks["tool.execute.before"]?.(input, output)
 
     expect(mockWrapWithSandbox).not.toHaveBeenCalled()
     expect(output.args.filePath).toBe("/etc/hosts")
@@ -85,7 +85,7 @@ describe("SandboxPlugin", () => {
       metadata: {},
     }
 
-    await hooks["tool.execute.after"]!(input, output)
+    await hooks["tool.execute.after"]?.(input, output)
 
     expect(output.output).toBe("cat: /home/user/.ssh/id_rsa: Operation not permitted")
   })
@@ -101,7 +101,7 @@ describe("SandboxPlugin", () => {
       metadata: {},
     }
 
-    await hooks["tool.execute.after"]!(input, output)
+    await hooks["tool.execute.after"]?.(input, output)
 
     expect(output.output).toBe("file1.ts\nfile2.ts")
   })
@@ -109,7 +109,7 @@ describe("SandboxPlugin", () => {
   test("uses config from OPENCODE_SANDBOX_CONFIG env var", async () => {
     if (process.platform === "win32") return
 
-    process.env["OPENCODE_SANDBOX_CONFIG"] = JSON.stringify({
+    process.env.OPENCODE_SANDBOX_CONFIG = JSON.stringify({
       filesystem: {
         denyRead: ["/custom/secret"],
       },
@@ -133,7 +133,7 @@ describe("SandboxPlugin", () => {
     const output = { args: { command: "echo hello" } }
 
     // Should not throw
-    await hooks["tool.execute.before"]!(input, output)
+    await hooks["tool.execute.before"]?.(input, output)
 
     // Command should remain unchanged (fail open)
     expect(output.args.command).toBe("echo hello")

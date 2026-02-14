@@ -1,6 +1,6 @@
-import path from "path"
-import os from "os"
-import fs from "fs/promises"
+import fs from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
 import type { SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime"
 
 export interface SandboxPluginConfig {
@@ -72,18 +72,19 @@ export function resolveConfig(
   const safePaths = candidatePaths.filter((p) => isSafeWritePath(p))
   // Deduplicate resolved paths (e.g. when worktree === projectDir)
   const seen = new Set<string>()
-  const writePaths = user?.filesystem?.allowWrite ?? safePaths.filter((p) => {
-    const resolved = path.resolve(p)
-    if (seen.has(resolved)) return false
-    seen.add(resolved)
-    return true
-  })
+  const writePaths =
+    user?.filesystem?.allowWrite ??
+    safePaths.filter((p) => {
+      const resolved = path.resolve(p)
+      if (seen.has(resolved)) return false
+      seen.add(resolved)
+      return true
+    })
 
   return {
     filesystem: {
       denyRead:
-        user?.filesystem?.denyRead ??
-        DEFAULT_DENY_READ_DIRS.map((p) => path.join(homeDir, p)),
+        user?.filesystem?.denyRead ?? DEFAULT_DENY_READ_DIRS.map((p) => path.join(homeDir, p)),
       allowWrite: writePaths,
       denyWrite: user?.filesystem?.denyWrite ?? [],
     },
@@ -98,7 +99,7 @@ export function resolveConfig(
 }
 
 export async function loadConfig(projectDir: string): Promise<SandboxPluginConfig> {
-  const envConfig = process.env["OPENCODE_SANDBOX_CONFIG"]
+  const envConfig = process.env.OPENCODE_SANDBOX_CONFIG
   if (envConfig) {
     try {
       return JSON.parse(envConfig) as SandboxPluginConfig
