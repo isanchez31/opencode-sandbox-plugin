@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.17] - 2026-02-14
+
+### Added
+
+- Biome for linting and formatting with project conventions
+- CHANGELOG.md covering all releases
+- README badges (CI, npm version, license)
+- Dependabot for npm and GitHub Actions dependencies
+- `test:coverage` script using bun's built-in coverage
+
+### Changed
+
+- Split CI into parallel `quality` and `test` jobs
+- Normalize code style with Biome (`node:` import protocol, literal keys, import ordering)
+
 ## [0.1.16] - 2026-02-14
 
 ### Changed
@@ -71,6 +86,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Network allowlist with proxy-based domain filtering
 - Unit tests for config and plugin hooks
 
+[0.1.17]: https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.16...v0.1.17
 [0.1.16]: https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.15...v0.1.16
 [0.1.15]: https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.14...v0.1.15
 [0.1.14]: https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.13...v0.1.14
