@@ -13,9 +13,13 @@ bun install
 ## Commands
 
 ```bash
-bun run build    # Build the project
-bun test         # Run tests
-bun run dev      # Watch mode
+bun run build        # Build the project
+bun test             # Run tests
+bun test --coverage  # Run tests with coverage
+bun run check        # Lint + format check (Biome)
+bun run check:fix    # Lint + format auto-fix
+bun run typecheck    # Type check (tsc --noEmit)
+bun run dev          # Watch mode
 ```
 
 ## Making Changes
@@ -27,9 +31,11 @@ bun run dev      # Watch mode
 
 2. Make your changes and add tests if applicable.
 
-3. Ensure all tests pass:
+3. Ensure everything passes before committing:
    ```bash
-   bun test
+   bun run check      # Lint + format
+   bun run typecheck   # Type check
+   bun test            # Tests
    ```
 
 4. Commit using [Conventional Commits](https://www.conventionalcommits.org/):
@@ -41,14 +47,18 @@ bun run dev      # Watch mode
    chore: update dependencies
    ```
 
-5. Open a Pull Request against `main`.
+5. Open a Pull Request against `main`. PR titles must follow the same conventional commit format.
 
-## Code Style
+## Code Quality
 
-- TypeScript with strict mode
-- Use `bun` as the package manager and test runner
-- Keep dependencies minimal
-- Prefer explicit error handling over silent failures
+This project uses the following tools to maintain code quality:
+
+- **[Biome](https://biomejs.dev/)** for linting and formatting (replaces ESLint + Prettier)
+- **TypeScript strict mode** for type safety
+- **tsc --noEmit** for type checking beyond what Biome covers
+- **bun test** with built-in coverage for testing
+
+All checks run automatically in CI. PRs must pass the `quality` and `test` jobs before merging.
 
 ## Project Structure
 
@@ -74,6 +84,10 @@ Use the [bug report template](https://github.com/isanchez31/opencode-sandbox-plu
 ## Requesting Features
 
 Use the [feature request template](https://github.com/isanchez31/opencode-sandbox-plugin/issues/new?template=feature_request.md).
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
 
 ## License
 
