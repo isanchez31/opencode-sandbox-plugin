@@ -142,8 +142,8 @@ If anything goes wrong (sandbox init fails, wrapping fails, platform unsupported
 
 ```bash
 # Clone and install
-git clone https://github.com/your-username/opencode-sandbox.git
-cd opencode-sandbox
+git clone https://github.com/isanchez31/opencode-sandbox-plugin.git
+cd opencode-sandbox-plugin
 bun install
 
 # Run tests

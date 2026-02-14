@@ -5,6 +5,12 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "files": [
     "dist",
     "README.md",
@@ -26,7 +32,15 @@
     "bubblewrap",
     "agent-safety"
   ],
-  "author": "",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/isanchez31/opencode-sandbox-plugin.git"
+  },
+  "homepage": "https://github.com/isanchez31/opencode-sandbox-plugin#readme",
+  "bugs": {
+    "url": "https://github.com/isanchez31/opencode-sandbox-plugin/issues"
+  },
+  "author": "Ivan Sanchez <ivan31.sanchez@gmail.com>",
   "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "^0.0.37"
