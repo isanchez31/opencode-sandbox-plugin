@@ -64,12 +64,13 @@ export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
       if (input.tool !== "bash") return
 
       const text = output.output ?? ""
-      // Strip the benign bwrap loopback warning before checking for real blocks
-      const textWithoutBwrapWarning = text.replace(/bwrap: loopback: [^\n]*/g, "")
+      // Strip benign bwrap warnings from output for cleaner display
+      const cleanText = text.replace(/bwrap: loopback: [^\n]*\n?/g, "").trim()
+
       if (
-        textWithoutBwrapWarning.includes("Operation not permitted") ||
-        textWithoutBwrapWarning.includes("Permission denied") ||
-        textWithoutBwrapWarning.includes("Connection blocked by network allowlist")
+        cleanText.includes("Operation not permitted") ||
+        cleanText.includes("Permission denied") ||
+        cleanText.includes("Connection blocked by network allowlist")
       ) {
         const message =
           "⚠️ [opencode-sandbox] Command blocked or partially blocked by sandbox restrictions. " +
@@ -78,6 +79,9 @@ export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
         if (output.metadata && typeof output.metadata.output === "string") {
           output.metadata.output = message
         }
+      } else if (output.metadata && typeof output.metadata.output === "string") {
+        // Clean bwrap warnings from UI output even for successful commands
+        output.metadata.output = cleanText
       }
 
       // Restore original command so the UI shows it instead of the bwrap wrapper
