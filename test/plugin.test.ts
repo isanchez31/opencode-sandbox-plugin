@@ -74,7 +74,7 @@ describe("SandboxPlugin", () => {
     expect(output.args.filePath).toBe("/etc/hosts")
   })
 
-  test("annotates output when sandbox blocks a command", async () => {
+  test("passes through blocked command output unchanged", async () => {
     if (process.platform === "win32") return
 
     const hooks = await SandboxPlugin(makeCtx())
@@ -87,11 +87,10 @@ describe("SandboxPlugin", () => {
 
     await hooks["tool.execute.after"]!(input, output)
 
-    expect(output.output).toContain("[opencode-sandbox]")
-    expect(output.output).toContain("sandbox restrictions")
+    expect(output.output).toBe("cat: /home/user/.ssh/id_rsa: Operation not permitted")
   })
 
-  test("does not annotate output for normal commands", async () => {
+  test("passes through normal command output unchanged", async () => {
     if (process.platform === "win32") return
 
     const hooks = await SandboxPlugin(makeCtx())
@@ -104,7 +103,7 @@ describe("SandboxPlugin", () => {
 
     await hooks["tool.execute.after"]!(input, output)
 
-    expect(output.output).not.toContain("[opencode-sandbox]")
+    expect(output.output).toBe("file1.ts\nfile2.ts")
   })
 
   test("uses config from OPENCODE_SANDBOX_CONFIG env var", async () => {

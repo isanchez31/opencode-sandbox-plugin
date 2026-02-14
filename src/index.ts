@@ -63,20 +63,6 @@ export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
     "tool.execute.after": async (input, output) => {
       if (input.tool !== "bash") return
 
-      const text = output.output ?? ""
-      if (
-        text.includes("Operation not permitted") ||
-        text.includes("Connection blocked by network allowlist")
-      ) {
-        const message =
-          "⚠️ [opencode-sandbox] Command blocked or partially blocked by sandbox restrictions. " +
-          "Adjust config in .opencode/sandbox.json or OPENCODE_SANDBOX_CONFIG."
-        output.output = text + "\n\n" + message
-        if (output.metadata && typeof output.metadata.output === "string") {
-          output.metadata.output = message
-        }
-      }
-
       // Restore original command so the UI shows it instead of the bwrap wrapper
       if (lastOriginalCommand && input.args && typeof input.args.command === "string") {
         input.args.command = lastOriginalCommand
