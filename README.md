@@ -186,32 +186,9 @@ The AI model interprets sandbox errors (like "Read-only file system" or "Connect
 
 If anything goes wrong (sandbox init fails, wrapping fails, platform unsupported), commands run normally without sandbox. The plugin never breaks your workflow.
 
-## Local development
+## Contributing
 
-```bash
-# Clone and install
-git clone https://github.com/isanchez31/opencode-sandbox-plugin.git
-cd opencode-sandbox-plugin
-bun install
-
-# Run tests
-bun test
-
-# Build
-bun run build
-```
-
-## Architecture
-
-```
-src/
-├── index.ts    # Plugin entry — exports SandboxPlugin, hooks into tool.execute.before/after
-└── config.ts   # Config loading (env var, .opencode/sandbox.json) + defaults + path validation
-
-test/
-├── config.test.ts   # Unit tests for config resolution and path safety
-└── plugin.test.ts   # Integration tests for plugin hooks
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, architecture, and guidelines.
 
 ## Related
 
