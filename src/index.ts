@@ -71,8 +71,7 @@ export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
       const isBlocked =
         cleanText.includes("Operation not permitted") ||
         cleanText.includes("Permission denied") ||
-        cleanText.includes("Connection blocked by network allowlist") ||
-        (exit !== 0 && cleanText === "")
+        cleanText.includes("Connection blocked by network allowlist")
 
       if (isBlocked) {
         const message =
