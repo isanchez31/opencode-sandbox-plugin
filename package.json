@@ -24,6 +24,7 @@
     "lint": "biome lint .",
     "format": "biome format .",
     "format:fix": "biome format --write .",
+    "typecheck": "tsc --noEmit",
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "prepublishOnly": "bun run build"

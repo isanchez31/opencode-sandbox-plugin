@@ -20,6 +20,8 @@ jobs:
 
       - run: bun run check
 
+      - run: bun run typecheck
+
   test:
     runs-on: ubuntu-latest
     steps:
