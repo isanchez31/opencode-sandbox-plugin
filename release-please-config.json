@@ -2,6 +2,7 @@
   "packages": {
     ".": {
       "release-type": "node",
+      "include-component-in-tag": false,
       "changelog-sections": [
         { "type": "feat", "section": "Added" },
         { "type": "fix", "section": "Fixed" },
