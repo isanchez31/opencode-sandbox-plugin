@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.20](https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.19...v0.1.20) (2026-02-14)
+
+
+### Documentation
+
+* add SECURITY.md and update CONTRIBUTING.md with quality tooling ([b3b9fe7](https://github.com/isanchez31/opencode-sandbox-plugin/commit/b3b9fe72a2cc2718ca194d06354d29b1981bf0b0))
+
 ## [0.1.19](https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.18...v0.1.19) (2026-02-14)
 
 
