@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.19](https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.18...v0.1.19) (2026-02-14)
+
+
+### Documentation
+
+* make docs commits visible in release changelog ([9eff69f](https://github.com/isanchez31/opencode-sandbox-plugin/commit/9eff69fcb12120ab8d190aa643d4b3f164951207))
+* replace local development and architecture sections with CONTRIBUTING.md link ([d65d452](https://github.com/isanchez31/opencode-sandbox-plugin/commit/d65d452cee9056766d8f10b513fcada3c878747b))
+
 ## [0.1.18](https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.17...v0.1.18) (2026-02-14)
 
 
