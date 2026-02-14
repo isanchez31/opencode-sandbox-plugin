@@ -20,6 +20,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Debug npm version
+        run: npm --version
+
+      - name: Remove token auth to enable OIDC
+        run: npm config delete //registry.npmjs.org/:_authToken || true
 
       - run: bun install
 

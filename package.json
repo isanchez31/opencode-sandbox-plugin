@@ -1,6 +1,6 @@
 {
   "name": "opencode-sandbox",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "OpenCode plugin that sandboxes agent commands using @anthropic-ai/sandbox-runtime (seatbelt on macOS, bubblewrap on Linux)",
   "type": "module",
   "main": "dist/index.js",
@@ -42,6 +42,11 @@
   },
   "author": "Ivan Sanchez <ivan31.sanchez@gmail.com>",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true,
+    "registry": "https://registry.npmjs.org/"
+  },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "^0.0.37"
   },
