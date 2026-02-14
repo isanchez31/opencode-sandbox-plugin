@@ -1,0 +1,43 @@
+{
+  "name": "opencode-sandbox",
+  "version": "0.1.0",
+  "description": "OpenCode plugin that sandboxes agent commands using @anthropic-ai/sandbox-runtime (seatbelt on macOS, bubblewrap on Linux)",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir dist --target node --format esm --external @anthropic-ai/sandbox-runtime --external @opencode-ai/plugin && bun x tsc --emitDeclarationOnly --declaration --outDir dist",
+    "dev": "bun run --watch src/index.ts",
+    "test": "bun test",
+    "prepublishOnly": "bun run build"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "sandbox",
+    "security",
+    "anthropic",
+    "seatbelt",
+    "bubblewrap",
+    "agent-safety"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sandbox-runtime": "^0.0.37"
+  },
+  "peerDependencies": {
+    "@opencode-ai/plugin": ">=1.0.0"
+  },
+  "devDependencies": {
+    "@opencode-ai/plugin": "^1.2.1",
+    "@opencode-ai/sdk": "^1.2.1",
+    "@types/bun": "^1.3.9",
+    "typescript": "^5.8.0"
+  }
+}
