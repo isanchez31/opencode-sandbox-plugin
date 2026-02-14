@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.18](https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.17...v0.1.18) (2026-02-14)
+
+
+### Fixed
+
+* **ci:** use plain version tags for release-please ([d0ea18e](https://github.com/isanchez31/opencode-sandbox-plugin/commit/d0ea18e56799371b594e9417339db2e6438800d1))
+
 ## [0.1.17] - 2026-02-14
 
 ### Added
