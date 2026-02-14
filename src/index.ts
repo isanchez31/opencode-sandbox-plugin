@@ -64,9 +64,11 @@ export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
       if (input.tool !== "bash") return
 
       const text = output.output ?? ""
+      const exit = output.metadata?.exit
       if (
-        text.includes("Operation not permitted") ||
-        text.includes("Connection blocked by network allowlist")
+        exit !== 0 &&
+        (text.includes("Operation not permitted") ||
+        text.includes("Connection blocked by network allowlist"))
       ) {
         const message =
           "⚠️ [opencode-sandbox] Command blocked or partially blocked by sandbox restrictions. " +
