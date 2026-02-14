@@ -64,9 +64,13 @@ export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
         text.includes("Operation not permitted") ||
         text.includes("Connection blocked by network allowlist")
       ) {
-        output.output = text +
+        const annotation = text +
           "\n\n⚠️ [opencode-sandbox] Command blocked or partially blocked by sandbox restrictions. " +
           "Adjust config in .opencode/sandbox.json or OPENCODE_SANDBOX_CONFIG."
+        output.output = annotation
+        if (output.metadata && typeof output.metadata.output === "string") {
+          output.metadata.output = annotation
+        }
       }
     },
   }
