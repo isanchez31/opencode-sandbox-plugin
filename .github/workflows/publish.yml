@@ -5,8 +5,8 @@ on:
     types: [published]
 
 permissions:
-  id-token: write
   contents: read
+  id-token: write
 
 jobs:
   publish:
@@ -20,7 +20,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: lts/*
 
       - run: bun install
 
@@ -28,12 +28,4 @@ jobs:
 
       - run: bun run build
 
-      - name: Debug OIDC environment
-        run: |
-          echo "npm version: $(npm --version)"
-          echo "OIDC URL exists: $([ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && echo yes || echo no)"
-          echo "OIDC TOKEN exists: $([ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ] && echo yes || echo no)"
-          echo "npmrc: $(cat ~/.npmrc 2>/dev/null || echo 'none')"
-          npm config list
-
-      - run: npm publish --provenance --access public
+      - run: npm publish --verbose --access public
