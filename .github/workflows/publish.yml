@@ -6,6 +6,7 @@ on:
 
 permissions:
   id-token: write
+  contents: read
 
 jobs:
   publish:
@@ -20,18 +21,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
-
-      - name: Debug npm version
-        run: npm --version
-
-      - name: Remove token auth to enable OIDC
-        run: npm config delete //registry.npmjs.org/:_authToken || true
 
       - run: bun install
 
       - run: bun test
 
       - run: bun run build
+
+      - name: Debug OIDC environment
+        run: |
+          echo "npm version: $(npm --version)"
+          echo "OIDC URL exists: $([ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && echo yes || echo no)"
+          echo "OIDC TOKEN exists: $([ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ] && echo yes || echo no)"
+          echo "npmrc: $(cat ~/.npmrc 2>/dev/null || echo 'none')"
+          npm config list
 
       - run: npm publish --provenance --access public
