@@ -1,0 +1,20 @@
+{
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "changelog-sections": [
+        { "type": "feat", "section": "Added" },
+        { "type": "fix", "section": "Fixed" },
+        { "type": "perf", "section": "Performance" },
+        { "type": "revert", "section": "Reverted" },
+        { "type": "docs", "section": "Documentation", "hidden": true },
+        { "type": "chore", "section": "Miscellaneous", "hidden": true },
+        { "type": "ci", "section": "Miscellaneous", "hidden": true },
+        { "type": "test", "section": "Miscellaneous", "hidden": true },
+        { "type": "build", "section": "Miscellaneous", "hidden": true },
+        { "type": "refactor", "section": "Miscellaneous", "hidden": true },
+        { "type": "style", "section": "Miscellaneous", "hidden": true }
+      ]
+    }
+  }
+}
