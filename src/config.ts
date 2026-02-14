@@ -48,6 +48,19 @@ const DEFAULT_ALLOWED_DOMAINS = [
   "*.googleapis.com",
 ]
 
+// Paths too broad for write access — would effectively disable the sandbox.
+// /tmp is intentionally excluded: it's a legitimate temp directory.
+const UNSAFE_WRITE_PATHS = new Set(["/", "/home", "/usr", "/etc", "/var", "/opt"])
+
+function isSafeWritePath(p: string): boolean {
+  const normalized = path.resolve(p)
+  if (UNSAFE_WRITE_PATHS.has(normalized)) {
+    console.warn(`[opencode-sandbox] Rejecting unsafe write path: ${normalized}`)
+    return false
+  }
+  return true
+}
+
 export function resolveConfig(
   projectDir: string,
   worktree: string,
@@ -55,13 +68,23 @@ export function resolveConfig(
 ): SandboxRuntimeConfig {
   const homeDir = os.homedir()
 
+  const candidatePaths = [projectDir, worktree, os.tmpdir()].filter(Boolean)
+  const safePaths = candidatePaths.filter((p) => isSafeWritePath(p))
+  // Deduplicate resolved paths (e.g. when worktree === projectDir)
+  const seen = new Set<string>()
+  const writePaths = user?.filesystem?.allowWrite ?? safePaths.filter((p) => {
+    const resolved = path.resolve(p)
+    if (seen.has(resolved)) return false
+    seen.add(resolved)
+    return true
+  })
+
   return {
     filesystem: {
       denyRead:
         user?.filesystem?.denyRead ??
         DEFAULT_DENY_READ_DIRS.map((p) => path.join(homeDir, p)),
-      allowWrite:
-        user?.filesystem?.allowWrite ?? [projectDir, worktree, os.tmpdir()].filter(Boolean),
+      allowWrite: writePaths,
       denyWrite: user?.filesystem?.denyWrite ?? [],
     },
     network: {

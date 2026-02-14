@@ -79,6 +79,25 @@ describe("resolveConfig", () => {
     expect(config.filesystem?.allowWrite).toContain("/worktree")
   })
 
+  test("rejects root path '/' as worktree to prevent sandbox bypass", () => {
+    const config = resolveConfig("/project", "/")
+    expect(config.filesystem?.allowWrite).toContain("/project")
+    expect(config.filesystem?.allowWrite).not.toContain("/")
+  })
+
+  test("rejects unsafe broad paths from allowWrite", () => {
+    const config = resolveConfig("/home", "/usr")
+    expect(config.filesystem?.allowWrite).not.toContain("/home")
+    expect(config.filesystem?.allowWrite).not.toContain("/usr")
+  })
+
+  test("deduplicates identical projectDir and worktree", () => {
+    const config = resolveConfig("/project", "/project")
+    const writeList = config.filesystem?.allowWrite ?? []
+    const projectCount = writeList.filter((p) => p === "/project").length
+    expect(projectCount).toBe(1)
+  })
+
   test("handles unix socket config", () => {
     const user: SandboxPluginConfig = {
       network: {
