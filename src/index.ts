@@ -39,7 +39,7 @@ export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
 
   if (!sandboxReady) return {}
 
-  let lastOriginalCommand: string | undefined
+  const originalCommands = new Map<string, string>()
 
   return {
     "tool.execute.before": async (input, output) => {
@@ -48,7 +48,7 @@ export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
       const command = output.args?.command
       if (typeof command !== "string" || !command) return
 
-      lastOriginalCommand = command
+      originalCommands.set(input.callID, command)
 
       try {
         output.args.command = await SandboxManager.wrapWithSandbox(command)
@@ -64,9 +64,10 @@ export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
       if (input.tool !== "bash") return
 
       // Restore original command so the UI shows it instead of the bwrap wrapper
-      if (lastOriginalCommand && input.args && typeof input.args.command === "string") {
-        input.args.command = lastOriginalCommand
-        lastOriginalCommand = undefined
+      const originalCommand = originalCommands.get(input.callID)
+      if (originalCommand && input.args && typeof input.args.command === "string") {
+        input.args.command = originalCommand
+        originalCommands.delete(input.callID)
       }
     },
   }
