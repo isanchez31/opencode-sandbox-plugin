@@ -125,10 +125,25 @@ Everything else is **blocked by default**.
 
 ## Configuration
 
-### Option 1: Config file
+Config files are stored outside the project directory (in `~/.config/opencode-sandbox/`) so that sandboxed commands cannot modify them. This prevents indirect prompt injection from weakening the sandbox by overwriting the config.
+
+### Config file locations
+
+The plugin searches for configuration in this order (first match wins):
+
+1. **Environment variable** `OPENCODE_SANDBOX_CONFIG` (JSON string)
+2. **Per-project config** `~/.config/opencode-sandbox/projects/<project-name>.json`
+3. **Global config** `~/.config/opencode-sandbox/config.json`
+4. **Built-in defaults**
+
+The `<project-name>` is the basename of the project directory (e.g., `my-app` for `/home/user/projects/my-app`).
+
+If `XDG_CONFIG_HOME` is set, it is used instead of `~/.config`.
+
+### Example: Global config
 
 ```json
-// .opencode/sandbox.json
+// ~/.config/opencode-sandbox/config.json
 {
   "filesystem": {
     "denyRead": ["~/.ssh", "~/.aws/credentials"],
@@ -149,19 +164,30 @@ Everything else is **blocked by default**.
 }
 ```
 
-### Option 2: Environment variable
+### Example: Per-project config
+
+```json
+// ~/.config/opencode-sandbox/projects/my-app.json
+{
+  "network": {
+    "allowedDomains": ["my-internal-api.company.com"]
+  }
+}
+```
+
+### Environment variable
 
 ```bash
 OPENCODE_SANDBOX_CONFIG='{"filesystem":{"denyRead":["~/.ssh"]},"network":{"allowedDomains":["github.com"]}}' opencode
 ```
 
-### Option 3: Disable
+### Disable
 
 ```bash
 OPENCODE_DISABLE_SANDBOX=1 opencode
 ```
 
-Or in `.opencode/sandbox.json`:
+Or in any config file:
 
 ```json
 {
