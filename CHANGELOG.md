@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.22](https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.21...v0.1.22) (2026-02-26)
+
+
+### Fixed
+
+* use Map keyed by callID to prevent race condition in command restoration ([#11](https://github.com/isanchez31/opencode-sandbox-plugin/issues/11)) ([faadd47](https://github.com/isanchez31/opencode-sandbox-plugin/commit/faadd479beda92606c2212e874c109406bb2e091))
+
 ## [0.1.21](https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.20...v0.1.21) (2026-02-14)
 
 
