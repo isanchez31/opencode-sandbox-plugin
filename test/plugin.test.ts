@@ -138,4 +138,40 @@ describe("SandboxPlugin", () => {
     // Command should remain unchanged (fail open)
     expect(output.args.command).toBe("echo hello")
   })
+
+  test("restores correct command for concurrent bash calls", async () => {
+    if (process.platform === "win32") return
+
+    const hooks = await SandboxPlugin(makeCtx())
+
+    // Simulate two concurrent bash commands with different callIDs
+    const input1 = { tool: "bash", sessionID: "s1", callID: "c1" }
+    const output1 = { args: { command: "echo first" } }
+    const input2 = { tool: "bash", sessionID: "s1", callID: "c2" }
+    const output2 = { args: { command: "echo second" } }
+
+    // Both "before" hooks fire before either "after" (simulating concurrent execution)
+    await hooks["tool.execute.before"]?.(input1, output1)
+    await hooks["tool.execute.before"]?.(input2, output2)
+
+    // Now restore both - each should get its own original command
+    const afterInput1 = {
+      tool: "bash",
+      sessionID: "s1",
+      callID: "c1",
+      args: { command: output1.args.command },
+    }
+    const afterInput2 = {
+      tool: "bash",
+      sessionID: "s1",
+      callID: "c2",
+      args: { command: output2.args.command },
+    }
+
+    await hooks["tool.execute.after"]?.(afterInput1, {})
+    await hooks["tool.execute.after"]?.(afterInput2, {})
+
+    expect(afterInput1.args.command).toBe("echo first")
+    expect(afterInput2.args.command).toBe("echo second")
+  })
 })
