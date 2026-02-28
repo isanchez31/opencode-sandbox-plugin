@@ -33,6 +33,18 @@ jobs:
 
       - run: bun install
 
-      - run: bun test --coverage
+      - name: Run tests with coverage
+        run: |
+          bun test --coverage 2>&1 | tee /tmp/coverage.txt
+
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(grep 'All files' /tmp/coverage.txt | awk -F'|' '{gsub(/ /, "", $3); print $3}')
+          echo "Line coverage: ${COVERAGE}%"
+          THRESHOLD=85
+          if [ "$(echo "$COVERAGE < $THRESHOLD" | bc -l)" -eq 1 ]; then
+            echo "::error::Coverage ${COVERAGE}% is below threshold ${THRESHOLD}%"
+            exit 1
+          fi
 
       - run: bun run build
