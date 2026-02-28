@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.24](https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.23...v0.1.24) (2026-02-28)
+
+
+### Fixed
+
+* expand default denyRead to cover additional credential stores ([5d83b6c](https://github.com/isanchez31/opencode-sandbox-plugin/commit/5d83b6c646aa242b66ee391d05f3fc810ba2b68d))
+* expand default denyRead to cover additional credential stores ([1fc0ab6](https://github.com/isanchez31/opencode-sandbox-plugin/commit/1fc0ab6e28e8ecacf6c79a319caadd77ef9aa8d2)), closes [#16](https://github.com/isanchez31/opencode-sandbox-plugin/issues/16)
+
 ## [0.1.23](https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.22...v0.1.23) (2026-02-28)
 
 
