@@ -1,0 +1,25 @@
+# CodeRabbit AI Code Review Configuration
+# Docs: https://docs.coderabbit.ai/getting-started/configure-coderabbit
+language: en-US
+
+reviews:
+  # Automatically review PRs when opened or updated
+  auto_review:
+    enabled: true
+
+  # Assertive profile for security-focused project
+  profile: assertive
+
+  # Skip auto-generated and non-essential files
+  path_filters:
+    - "!bun.lock"
+    - "!CHANGELOG.md"
+    - "!.release-please-manifest.json"
+
+  tools:
+    # Enable Biome (already used in this project)
+    biome:
+      enabled: true
+
+chat:
+  auto_reply: true
