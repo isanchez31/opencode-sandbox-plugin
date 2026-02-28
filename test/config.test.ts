@@ -2,9 +2,10 @@ import { afterAll, beforeEach, describe, expect, test } from "bun:test"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { loadConfig, resolveConfig, type SandboxPluginConfig } from "../src/config"
+import { getConfigDir, loadConfig, resolveConfig, type SandboxPluginConfig } from "../src/config"
 
 const PROJECT_DIR = `/tmp/test-project-sandbox-${process.pid}`
+const CONFIG_DIR = `/tmp/test-sandbox-config-${process.pid}`
 const WORKTREE = PROJECT_DIR
 
 describe("resolveConfig", () => {
@@ -110,19 +111,36 @@ describe("resolveConfig", () => {
   })
 })
 
+describe("getConfigDir", () => {
+  test("uses XDG_CONFIG_HOME when set", () => {
+    process.env.XDG_CONFIG_HOME = "/custom/config"
+    expect(getConfigDir()).toBe("/custom/config/opencode-sandbox")
+    delete process.env.XDG_CONFIG_HOME
+  })
+
+  test("falls back to ~/.config when XDG_CONFIG_HOME is not set", () => {
+    delete process.env.XDG_CONFIG_HOME
+    expect(getConfigDir()).toBe(path.join(os.homedir(), ".config", "opencode-sandbox"))
+  })
+})
+
 describe("loadConfig", () => {
+  const sandboxConfigDir = path.join(CONFIG_DIR, "opencode-sandbox")
+  const projectName = path.basename(PROJECT_DIR)
+
   beforeEach(async () => {
     delete process.env.OPENCODE_SANDBOX_CONFIG
-    await fs.rm(PROJECT_DIR, { recursive: true, force: true })
-    await fs.mkdir(path.join(PROJECT_DIR, ".opencode"), { recursive: true })
+    process.env.XDG_CONFIG_HOME = CONFIG_DIR
+    await fs.rm(CONFIG_DIR, { recursive: true, force: true })
+    await fs.mkdir(path.join(sandboxConfigDir, "projects"), { recursive: true })
   })
 
   afterAll(async () => {
-    await fs.rm(PROJECT_DIR, { recursive: true, force: true })
+    delete process.env.XDG_CONFIG_HOME
+    await fs.rm(CONFIG_DIR, { recursive: true, force: true })
   })
 
   test("returns empty config when no file and no env var", async () => {
-    await fs.rm(PROJECT_DIR, { recursive: true, force: true })
     const config = await loadConfig(PROJECT_DIR)
     expect(config).toEqual({})
   })
@@ -137,27 +155,47 @@ describe("loadConfig", () => {
     expect(config.filesystem?.denyRead).toEqual(["/secret"])
   })
 
-  test("env var takes priority over file", async () => {
+  test("loads per-project config", async () => {
+    await fs.writeFile(
+      path.join(sandboxConfigDir, "projects", `${projectName}.json`),
+      JSON.stringify({ network: { allowedDomains: ["example.com"] } }),
+    )
+    const config = await loadConfig(PROJECT_DIR)
+    expect(config.network?.allowedDomains).toEqual(["example.com"])
+  })
+
+  test("loads global config", async () => {
+    await fs.writeFile(
+      path.join(sandboxConfigDir, "config.json"),
+      JSON.stringify({ filesystem: { denyRead: ["/global-secret"] } }),
+    )
+    const config = await loadConfig(PROJECT_DIR)
+    expect(config.filesystem?.denyRead).toEqual(["/global-secret"])
+  })
+
+  test("env var takes priority over per-project config", async () => {
     process.env.OPENCODE_SANDBOX_CONFIG = JSON.stringify({
       filesystem: { denyRead: ["/from-env"] },
     })
     await fs.writeFile(
-      path.join(PROJECT_DIR, ".opencode", "sandbox.json"),
-      JSON.stringify({ filesystem: { denyRead: ["/from-file"] } }),
+      path.join(sandboxConfigDir, "projects", `${projectName}.json`),
+      JSON.stringify({ filesystem: { denyRead: ["/from-project"] } }),
     )
     const config = await loadConfig(PROJECT_DIR)
     expect(config.filesystem?.denyRead).toEqual(["/from-env"])
   })
 
-  test("loads config from .opencode/sandbox.json", async () => {
+  test("per-project config takes priority over global config", async () => {
     await fs.writeFile(
-      path.join(PROJECT_DIR, ".opencode", "sandbox.json"),
-      JSON.stringify({
-        network: { allowedDomains: ["example.com"] },
-      }),
+      path.join(sandboxConfigDir, "projects", `${projectName}.json`),
+      JSON.stringify({ filesystem: { denyRead: ["/from-project"] } }),
+    )
+    await fs.writeFile(
+      path.join(sandboxConfigDir, "config.json"),
+      JSON.stringify({ filesystem: { denyRead: ["/from-global"] } }),
     )
     const config = await loadConfig(PROJECT_DIR)
-    expect(config.network?.allowedDomains).toEqual(["example.com"])
+    expect(config.filesystem?.denyRead).toEqual(["/from-project"])
   })
 
   test("handles invalid JSON in env var gracefully", async () => {
@@ -167,7 +205,7 @@ describe("loadConfig", () => {
   })
 
   test("handles invalid JSON in file gracefully", async () => {
-    await fs.writeFile(path.join(PROJECT_DIR, ".opencode", "sandbox.json"), "broken{json")
+    await fs.writeFile(path.join(sandboxConfigDir, "config.json"), "broken{json")
     const config = await loadConfig(PROJECT_DIR)
     expect(config).toEqual({})
   })

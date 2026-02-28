@@ -98,6 +98,20 @@ export function resolveConfig(
   }
 }
 
+export function getConfigDir(): string {
+  const xdgConfig = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config")
+  return path.join(xdgConfig, "opencode-sandbox")
+}
+
+async function tryLoadJsonFile(filePath: string): Promise<SandboxPluginConfig | null> {
+  try {
+    const content = await fs.readFile(filePath, "utf-8")
+    return JSON.parse(content) as SandboxPluginConfig
+  } catch {
+    return null
+  }
+}
+
 export async function loadConfig(projectDir: string): Promise<SandboxPluginConfig> {
   const envConfig = process.env.OPENCODE_SANDBOX_CONFIG
   if (envConfig) {
@@ -108,11 +122,16 @@ export async function loadConfig(projectDir: string): Promise<SandboxPluginConfi
     }
   }
 
-  const configPath = path.join(projectDir, ".opencode", "sandbox.json")
-  try {
-    const content = await fs.readFile(configPath, "utf-8")
-    return JSON.parse(content) as SandboxPluginConfig
-  } catch {
-    return {}
-  }
+  const configDir = getConfigDir()
+
+  const projectName = path.basename(projectDir)
+  const projectConfig = await tryLoadJsonFile(
+    path.join(configDir, "projects", `${projectName}.json`),
+  )
+  if (projectConfig) return projectConfig
+
+  const globalConfig = await tryLoadJsonFile(path.join(configDir, "config.json"))
+  if (globalConfig) return globalConfig
+
+  return {}
 }
