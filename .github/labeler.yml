@@ -1,0 +1,32 @@
+source:
+  - changed-files:
+      - any-glob-to-any-file: "src/**"
+
+tests:
+  - changed-files:
+      - any-glob-to-any-file: "test/**"
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file: ".github/**"
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "*.md"
+          - "LICENSE"
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "package.json"
+          - "bun.lock"
+          - "tsconfig.json"
+
+config:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "biome.json"
+          - "release-please-config.json"
+          - ".release-please-manifest.json"
+          - ".github/dependabot.yml"
