@@ -1,0 +1,46 @@
+version: 2
+
+issueRules:
+  # Supply chain threats — critical for a security plugin
+  malware: true
+  didYouMean: true
+  gptMalware: true
+  installScripts: true
+  obfuscatedFile: true
+  manifestConfusion: true
+  troll: true
+
+  # Runtime behavior — high relevance for a sandboxing project
+  networkAccess: true
+  shellAccess: true
+  envVars: true
+  filesystemAccess: true
+  usesEval: true
+
+  # Dependency sourcing risks
+  gitDependency: true
+  httpDependency: true
+  gitHubDependency: true
+
+  # Ownership and maintenance
+  unstableOwnership: true
+  newAuthor: true
+  deprecated: true
+  unmaintained: true
+
+  # Vulnerability tracking
+  criticalCVE: true
+  cve: true
+  mediumCVE: true
+
+  # Quality signals
+  trivialPackage: true
+  highEntropyStrings: true
+  debugAccess: true
+  telemetry: true
+
+githubApp:
+  enabled: true
+  pullRequestAlertsEnabled: true
+  dependencyOverviewEnabled: true
+  projectReportsEnabled: true
