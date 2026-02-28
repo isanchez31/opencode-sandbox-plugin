@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0](https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.24...v0.2.0) (2026-02-28)
+
+
+### Added
+
+* add CodeRabbit AI code review configuration ([#25](https://github.com/isanchez31/opencode-sandbox-plugin/issues/25)) ([ed9c89f](https://github.com/isanchez31/opencode-sandbox-plugin/commit/ed9c89f5ae4ed26b19af42ae436136a7ca9eff1f))
+* add OpenSSF Scorecard security analysis ([#23](https://github.com/isanchez31/opencode-sandbox-plugin/issues/23)) ([e717ef0](https://github.com/isanchez31/opencode-sandbox-plugin/commit/e717ef048a29e2b80e0ca1233783e33c06a1e27e))
+* add Socket Security supply chain scanning ([#24](https://github.com/isanchez31/opencode-sandbox-plugin/issues/24)) ([5072dac](https://github.com/isanchez31/opencode-sandbox-plugin/commit/5072dac088fa147665a5370103507e78445a7e48))
+
+
+### Fixed
+
+* remove redundant Socket Security workflow ([#27](https://github.com/isanchez31/opencode-sandbox-plugin/issues/27)) ([544b6a3](https://github.com/isanchez31/opencode-sandbox-plugin/commit/544b6a3746b2e9e99db881fce14c162468928061))
+
 ## [0.1.24](https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.23...v0.1.24) (2026-02-28)
 
 
