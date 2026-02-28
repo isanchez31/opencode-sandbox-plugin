@@ -23,8 +23,13 @@ const DEFAULT_DENY_READ_DIRS = [
   ".ssh",
   ".gnupg",
   ".aws/credentials",
+  ".azure",
   ".config/gcloud",
+  ".config/gh",
+  ".kube",
+  ".docker/config.json",
   ".npmrc",
+  ".netrc",
   ".env",
 ]
 
