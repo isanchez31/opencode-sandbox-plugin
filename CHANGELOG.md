@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.23](https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.22...v0.1.23) (2026-02-28)
+
+
+### Fixed
+
+* move config out of project directory to prevent injection attacks ([450272e](https://github.com/isanchez31/opencode-sandbox-plugin/commit/450272ef55c6508014549e056d71be0cfa934d29))
+* move config out of project directory to prevent injection attacks ([cee51a5](https://github.com/isanchez31/opencode-sandbox-plugin/commit/cee51a57c3a89651e669f59df1703bbdbdbf5c9e))
+
 ## [0.1.22](https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.1.21...v0.1.22) (2026-02-26)
 
 
