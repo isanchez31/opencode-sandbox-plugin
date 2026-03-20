@@ -7,6 +7,7 @@ export interface SandboxPluginConfig {
   disabled?: boolean
   filesystem?: {
     denyRead?: string[]
+    allowRead?: string[]
     allowWrite?: string[]
     denyWrite?: string[]
   }
@@ -90,6 +91,7 @@ export function resolveConfig(
     filesystem: {
       denyRead:
         user?.filesystem?.denyRead ?? DEFAULT_DENY_READ_DIRS.map((p) => path.join(homeDir, p)),
+      allowRead: user?.filesystem?.allowRead ?? [],
       allowWrite: writePaths,
       denyWrite: user?.filesystem?.denyWrite ?? [],
     },
