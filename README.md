@@ -107,6 +107,9 @@ $ curl https://registry.npmjs.org
 - `~/.aws/credentials`, `~/.config/gcloud`
 - `~/.npmrc`, `~/.env`
 
+**Filesystem (allow-read)**:
+- Empty by default
+
 **Filesystem (allow-write)**:
 - Project directory
 - Git worktree (validated — unsafe paths like `/` are rejected)
@@ -147,6 +150,7 @@ If `XDG_CONFIG_HOME` is set, it is used instead of `~/.config`.
 {
   "filesystem": {
     "denyRead": ["~/.ssh", "~/.aws/credentials"],
+    "allowRead": ["~/.ssh/id_ed25519.pub"],
     "allowWrite": [".", "/tmp", "/var/data"],
     "denyWrite": [".env.production"]
   },
@@ -160,6 +164,39 @@ If `XDG_CONFIG_HOME` is set, it is used instead of `~/.config`.
       "my-internal-api.company.com"
     ],
     "deniedDomains": ["malicious.example.com"]
+  }
+}
+```
+
+### Path precedence
+
+Path precedence is inherited from `@anthropic-ai/sandbox-runtime`:
+
+- Read: `allowRead` takes precedence over `denyRead`
+- Write: `denyWrite` takes precedence over `allowWrite`
+
+### Example: allow git commit signing with SSH public key
+
+If your Git workflow needs to read a public key (for example `~/.ssh/id_ed25519.pub`) while keeping `~/.ssh` blocked by default, re-allow only that file:
+
+```json
+// ~/.config/opencode-sandbox/config.json
+{
+  "filesystem": {
+    "denyRead": [
+      "~/.ssh",
+      "~/.gnupg",
+      "~/.aws/credentials",
+      "~/.azure",
+      "~/.config/gcloud",
+      "~/.config/gh",
+      "~/.kube",
+      "~/.docker/config.json",
+      "~/.npmrc",
+      "~/.netrc",
+      "~/.env"
+    ],
+    "allowRead": ["~/.ssh/id_ed25519.pub"]
   }
 }
 ```
@@ -179,6 +216,12 @@ If `XDG_CONFIG_HOME` is set, it is used instead of `~/.config`.
 
 ```bash
 OPENCODE_SANDBOX_CONFIG='{"filesystem":{"denyRead":["~/.ssh"]},"network":{"allowedDomains":["github.com"]}}' opencode
+```
+
+Example allowing only the SSH public key to be read:
+
+```bash
+OPENCODE_SANDBOX_CONFIG='{"filesystem":{"denyRead":["~/.ssh","~/.gnupg","~/.aws/credentials","~/.azure","~/.config/gcloud","~/.config/gh","~/.kube","~/.docker/config.json","~/.npmrc","~/.netrc","~/.env"],"allowRead":["~/.ssh/id_ed25519.pub"]}}' opencode
 ```
 
 ### Disable

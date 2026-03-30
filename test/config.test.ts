@@ -24,6 +24,7 @@ describe("resolveConfig", () => {
     expect(config.filesystem?.denyRead).toContain(path.join(os.homedir(), ".npmrc"))
     expect(config.filesystem?.denyRead).toContain(path.join(os.homedir(), ".netrc"))
     expect(config.filesystem?.denyRead).toContain(path.join(os.homedir(), ".env"))
+    expect(config.filesystem?.allowRead).toEqual([])
     expect(config.filesystem?.allowWrite).toContain(PROJECT_DIR)
     expect(config.filesystem?.allowWrite).toContain(os.tmpdir())
     expect(config.filesystem?.denyWrite).toEqual([])
@@ -41,6 +42,7 @@ describe("resolveConfig", () => {
     const user: SandboxPluginConfig = {
       filesystem: {
         denyRead: ["/custom/secret"],
+        allowRead: ["/custom/secret.pub"],
         allowWrite: ["/custom/output"],
         denyWrite: ["/custom/no-write"],
       },
@@ -48,6 +50,7 @@ describe("resolveConfig", () => {
     const config = resolveConfig(PROJECT_DIR, WORKTREE, user)
 
     expect(config.filesystem?.denyRead).toEqual(["/custom/secret"])
+    expect(config.filesystem?.allowRead).toEqual(["/custom/secret.pub"])
     expect(config.filesystem?.allowWrite).toEqual(["/custom/output"])
     expect(config.filesystem?.denyWrite).toEqual(["/custom/no-write"])
   })
@@ -69,12 +72,14 @@ describe("resolveConfig", () => {
     const user: SandboxPluginConfig = {
       filesystem: {
         denyRead: ["/only-this"],
+        allowRead: ["/except-this"],
       },
     }
     const config = resolveConfig(PROJECT_DIR, WORKTREE, user)
 
     // overridden
     expect(config.filesystem?.denyRead).toEqual(["/only-this"])
+    expect(config.filesystem?.allowRead).toEqual(["/except-this"])
     // defaults kept
     expect(config.filesystem?.allowWrite).toContain(PROJECT_DIR)
     expect(config.network?.allowedDomains).toContain("github.com")
@@ -156,11 +161,12 @@ describe("loadConfig", () => {
   test("loads config from OPENCODE_SANDBOX_CONFIG env var", async () => {
     process.env.OPENCODE_SANDBOX_CONFIG = JSON.stringify({
       disabled: false,
-      filesystem: { denyRead: ["/secret"] },
+      filesystem: { denyRead: ["/secret"], allowRead: ["/secret.pub"] },
     })
     const config = await loadConfig(PROJECT_DIR)
     expect(config.disabled).toBe(false)
     expect(config.filesystem?.denyRead).toEqual(["/secret"])
+    expect(config.filesystem?.allowRead).toEqual(["/secret.pub"])
   })
 
   test("loads per-project config", async () => {
