@@ -1,23 +1,23 @@
-import fs from "node:fs/promises"
-import os from "node:os"
-import path from "node:path"
-import type { SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime"
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import type { SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 
 export interface SandboxPluginConfig {
-  disabled?: boolean
+  disabled?: boolean;
   filesystem?: {
-    denyRead?: string[]
-    allowRead?: string[]
-    allowWrite?: string[]
-    denyWrite?: string[]
-  }
+    denyRead?: string[];
+    allowRead?: string[];
+    allowWrite?: string[];
+    denyWrite?: string[];
+  };
   network?: {
-    allowedDomains?: string[]
-    deniedDomains?: string[]
-    allowUnixSockets?: string[]
-    allowAllUnixSockets?: boolean
-    allowLocalBinding?: boolean
-  }
+    allowedDomains?: string[];
+    deniedDomains?: string[];
+    allowUnixSockets?: string[];
+    allowAllUnixSockets?: boolean;
+    allowLocalBinding?: boolean;
+  };
 }
 
 const DEFAULT_DENY_READ_DIRS = [
@@ -32,7 +32,7 @@ const DEFAULT_DENY_READ_DIRS = [
   ".npmrc",
   ".netrc",
   ".env",
-]
+];
 
 const DEFAULT_ALLOWED_DOMAINS = [
   "registry.npmjs.org",
@@ -52,19 +52,29 @@ const DEFAULT_ALLOWED_DOMAINS = [
   "api.anthropic.com",
   "generativelanguage.googleapis.com",
   "*.googleapis.com",
-]
+];
 
-// Paths too broad for write access — would effectively disable the sandbox.
-// /tmp is intentionally excluded: it's a legitimate temp directory.
-const UNSAFE_WRITE_PATHS = new Set(["/", "/home", "/usr", "/etc", "/var", "/opt"])
+const UNSAFE_WRITE_PATHS = new Set([
+  "/",
+  "/home",
+  "/usr",
+  "/etc",
+  "/var",
+  "/opt",
+  "/Library",
+  "/System",
+  "/private",
+  "/Volumes",
+  "/Users",
+]);
 
 function isSafeWritePath(p: string): boolean {
-  const normalized = path.resolve(p)
+  const normalized = path.resolve(p);
   if (UNSAFE_WRITE_PATHS.has(normalized)) {
-    console.warn(`[opencode-sandbox] Rejecting unsafe write path: ${normalized}`)
-    return false
+    console.warn(`[opencode-sandbox] Rejecting unsafe write path: ${normalized}`);
+    return false;
   }
-  return true
+  return true;
 }
 
 export function resolveConfig(
@@ -72,20 +82,19 @@ export function resolveConfig(
   worktree: string,
   user?: SandboxPluginConfig,
 ): SandboxRuntimeConfig {
-  const homeDir = os.homedir()
+  const homeDir = os.homedir();
 
-  const candidatePaths = [projectDir, worktree, os.tmpdir()].filter(Boolean)
-  const safePaths = candidatePaths.filter((p) => isSafeWritePath(p))
-  // Deduplicate resolved paths (e.g. when worktree === projectDir)
-  const seen = new Set<string>()
+  const candidatePaths = [projectDir, worktree, os.tmpdir()].filter(Boolean);
+  const safePaths = candidatePaths.filter((p) => isSafeWritePath(p));
+  const seen = new Set<string>();
   const writePaths =
     user?.filesystem?.allowWrite ??
     safePaths.filter((p) => {
-      const resolved = path.resolve(p)
-      if (seen.has(resolved)) return false
-      seen.add(resolved)
-      return true
-    })
+      const resolved = path.resolve(p);
+      if (seen.has(resolved)) return false;
+      seen.add(resolved);
+      return true;
+    });
 
   return {
     filesystem: {
@@ -102,43 +111,43 @@ export function resolveConfig(
       allowAllUnixSockets: user?.network?.allowAllUnixSockets,
       allowLocalBinding: user?.network?.allowLocalBinding ?? false,
     },
-  }
+  };
 }
 
 export function getConfigDir(): string {
-  const xdgConfig = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config")
-  return path.join(xdgConfig, "opencode-sandbox")
+  const xdgConfig = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config");
+  return path.join(xdgConfig, "opencode-sandbox");
 }
 
 async function tryLoadJsonFile(filePath: string): Promise<SandboxPluginConfig | null> {
   try {
-    const content = await fs.readFile(filePath, "utf-8")
-    return JSON.parse(content) as SandboxPluginConfig
+    const content = await fs.readFile(filePath, "utf-8");
+    return JSON.parse(content) as SandboxPluginConfig;
   } catch {
-    return null
+    return null;
   }
 }
 
 export async function loadConfig(projectDir: string): Promise<SandboxPluginConfig> {
-  const envConfig = process.env.OPENCODE_SANDBOX_CONFIG
+  const envConfig = process.env.OPENCODE_SANDBOX_CONFIG;
   if (envConfig) {
     try {
-      return JSON.parse(envConfig) as SandboxPluginConfig
+      return JSON.parse(envConfig) as SandboxPluginConfig;
     } catch {
-      console.warn("[opencode-sandbox] Invalid JSON in OPENCODE_SANDBOX_CONFIG, using defaults")
+      console.warn("[opencode-sandbox] Invalid JSON in OPENCODE_SANDBOX_CONFIG, using defaults");
     }
   }
 
-  const configDir = getConfigDir()
+  const configDir = getConfigDir();
 
-  const projectName = path.basename(projectDir)
+  const projectName = path.basename(projectDir);
   const projectConfig = await tryLoadJsonFile(
     path.join(configDir, "projects", `${projectName}.json`),
-  )
-  if (projectConfig) return projectConfig
+  );
+  if (projectConfig) return projectConfig;
 
-  const globalConfig = await tryLoadJsonFile(path.join(configDir, "config.json"))
-  if (globalConfig) return globalConfig
+  const globalConfig = await tryLoadJsonFile(path.join(configDir, "config.json"));
+  if (globalConfig) return globalConfig;
 
-  return {}
+  return {};
 }
