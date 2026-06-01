@@ -40,6 +40,7 @@ export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
   if (!sandboxReady) return {}
 
   const originalCommands = new Map<string, string>()
+  const sandboxedCommands = new Set<string>()
 
   return {
     "tool.execute.before": async (input, output) => {
@@ -52,6 +53,7 @@ export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
 
       try {
         output.args.command = await SandboxManager.wrapWithSandbox(command)
+        sandboxedCommands.add(input.callID)
       } catch (err) {
         console.warn(
           "[opencode-sandbox] Failed to wrap command, running unsandboxed:",
@@ -63,11 +65,22 @@ export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
     "tool.execute.after": async (input, _output) => {
       if (input.tool !== "bash") return
 
+      if (sandboxedCommands.delete(input.callID)) {
+        try {
+          SandboxManager.cleanupAfterCommand()
+        } catch (err) {
+          console.warn(
+            "[opencode-sandbox] Failed to clean up sandbox artifacts:",
+            err instanceof Error ? err.message : err,
+          )
+        }
+      }
+
       // Restore original command so the UI shows it instead of the bwrap wrapper
       const originalCommand = originalCommands.get(input.callID)
+      originalCommands.delete(input.callID)
       if (originalCommand && input.args && typeof input.args.command === "string") {
         input.args.command = originalCommand
-        originalCommands.delete(input.callID)
       }
     },
   }

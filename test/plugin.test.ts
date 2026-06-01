@@ -3,12 +3,14 @@ import { beforeEach, describe, expect, mock, test } from "bun:test"
 // Mock the SandboxManager before importing the plugin
 const mockInitialize = mock(() => Promise.resolve())
 const mockWrapWithSandbox = mock((cmd: string) => Promise.resolve(`srt-wrapped: ${cmd}`))
+const mockCleanupAfterCommand = mock(() => undefined)
 const mockReset = mock(() => Promise.resolve())
 
 mock.module("@anthropic-ai/sandbox-runtime", () => ({
   SandboxManager: {
     initialize: mockInitialize,
     wrapWithSandbox: mockWrapWithSandbox,
+    cleanupAfterCommand: mockCleanupAfterCommand,
     reset: mockReset,
   },
 }))
@@ -28,6 +30,7 @@ describe("SandboxPlugin", () => {
   beforeEach(() => {
     mockInitialize.mockClear()
     mockWrapWithSandbox.mockClear()
+    mockCleanupAfterCommand.mockClear()
     delete process.env.OPENCODE_DISABLE_SANDBOX
     delete process.env.OPENCODE_SANDBOX_CONFIG
   })
@@ -137,6 +140,54 @@ describe("SandboxPlugin", () => {
 
     // Command should remain unchanged (fail open)
     expect(output.args.command).toBe("echo hello")
+    expect(mockCleanupAfterCommand).not.toHaveBeenCalled()
+  })
+
+  test("cleans up sandbox mount points after wrapped bash command completes", async () => {
+    if (process.platform === "win32") return
+
+    const hooks = await SandboxPlugin(makeCtx())
+    const input = { tool: "bash", sessionID: "s1", callID: "c1" }
+    const output = { args: { command: "echo hello" } }
+
+    await hooks["tool.execute.before"]?.(input, output)
+
+    await hooks["tool.execute.after"]?.(
+      {
+        tool: "bash",
+        sessionID: "s1",
+        callID: "c1",
+        args: { command: output.args.command },
+      },
+      {},
+    )
+
+    expect(mockCleanupAfterCommand).toHaveBeenCalledTimes(1)
+  })
+
+  test("does not clean up sandbox mount points when wrapping failed", async () => {
+    if (process.platform === "win32") return
+
+    mockWrapWithSandbox.mockImplementationOnce(() => {
+      throw new Error("bwrap not found")
+    })
+
+    const hooks = await SandboxPlugin(makeCtx())
+    const input = { tool: "bash", sessionID: "s1", callID: "c1" }
+    const output = { args: { command: "echo hello" } }
+
+    await hooks["tool.execute.before"]?.(input, output)
+    await hooks["tool.execute.after"]?.(
+      {
+        tool: "bash",
+        sessionID: "s1",
+        callID: "c1",
+        args: { command: output.args.command },
+      },
+      {},
+    )
+
+    expect(mockCleanupAfterCommand).not.toHaveBeenCalled()
   })
 
   test("restores correct command for concurrent bash calls", async () => {
