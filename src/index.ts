@@ -4,6 +4,16 @@ import { loadConfig, resolveConfig } from "./config"
 
 export type { SandboxPluginConfig } from "./config"
 
+export function isSandboxWrappedCommand(command: string): boolean {
+  const trimmed = command.trim()
+  const linuxWrapper =
+    /^(?:[^\s'"]*\/)?bwrap\s/.test(trimmed) &&
+    /\s--setenv\s+SANDBOX_RUNTIME\s+1(?:\s|$)/.test(trimmed)
+  const macosWrapper =
+    /^env\s+SANDBOX_RUNTIME=1\s/.test(trimmed) && /\s\/usr\/bin\/sandbox-exec\s/.test(trimmed)
+  return linuxWrapper || macosWrapper
+}
+
 export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
   if (process.platform === "win32") {
     console.warn("[opencode-sandbox] Not supported on Windows — sandbox disabled")
@@ -47,6 +57,7 @@ export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
 
       const command = output.args?.command
       if (typeof command !== "string" || !command) return
+      if (isSandboxWrappedCommand(command)) return
 
       originalCommands.set(input.callID, command)
 
