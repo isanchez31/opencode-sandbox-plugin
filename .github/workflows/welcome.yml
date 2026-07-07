@@ -16,12 +16,12 @@ jobs:
     steps:
       - uses: actions/first-interaction@v3
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          issue-message: |
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          issue_message: |
             Thanks for opening your first issue! We appreciate you taking the time to report this.
 
             A maintainer will review it soon. In the meantime, please make sure you've included all the relevant details (OS, plugin version, steps to reproduce).
-          pr-message: |
+          pr_message: |
             Thanks for your first pull request! We're excited to review your contribution.
 
             Please make sure:
