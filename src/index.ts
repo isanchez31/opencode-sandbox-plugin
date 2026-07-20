@@ -1,6 +1,9 @@
+import fs from "node:fs/promises"
+import path from "node:path"
 import { SandboxManager } from "@anthropic-ai/sandbox-runtime"
 import type { Plugin } from "@opencode-ai/plugin"
 import { loadConfig, resolveConfig } from "./config"
+import { deinlineMacosProfile } from "./deinline-profile"
 
 export type { SandboxPluginConfig } from "./config"
 
@@ -40,6 +43,7 @@ export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
   if (!sandboxReady) return {}
 
   const originalCommands = new Map<string, string>()
+  const profilePaths = new Map<string, string>()
 
   return {
     "tool.execute.before": async (input, output) => {
@@ -51,7 +55,14 @@ export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
       originalCommands.set(input.callID, command)
 
       try {
-        output.args.command = await SandboxManager.wrapWithSandbox(command)
+        const wrapped = await SandboxManager.wrapWithSandbox(command)
+        // macOS inlines the whole Seatbelt profile via `sandbox-exec -p`, which
+        // OpenCode then echoes into the tool result and floods the model's
+        // context. Move it to a temp file (`-f`) to keep the command compact;
+        // the executed argv — and thus the sandbox behaviour — is unchanged.
+        const { command: compact, profilePath } = await deinlineMacosProfile(wrapped)
+        output.args.command = compact
+        if (profilePath) profilePaths.set(input.callID, profilePath)
       } catch (err) {
         console.warn(
           "[opencode-sandbox] Failed to wrap command, running unsandboxed:",
@@ -63,11 +74,18 @@ export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
     "tool.execute.after": async (input, _output) => {
       if (input.tool !== "bash") return
 
-      // Restore original command so the UI shows it instead of the bwrap wrapper
+      // Restore original command so the UI shows it instead of the sandbox wrapper
       const originalCommand = originalCommands.get(input.callID)
       if (originalCommand && input.args && typeof input.args.command === "string") {
         input.args.command = originalCommand
-        originalCommands.delete(input.callID)
+      }
+      originalCommands.delete(input.callID)
+
+      // Clean up the temp profile file written for this command, if any.
+      const profilePath = profilePaths.get(input.callID)
+      if (profilePath) {
+        profilePaths.delete(input.callID)
+        await fs.rm(path.dirname(profilePath), { recursive: true, force: true }).catch(() => {})
       }
     },
   }
