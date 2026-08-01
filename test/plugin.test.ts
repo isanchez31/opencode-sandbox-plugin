@@ -13,7 +13,7 @@ mock.module("@anthropic-ai/sandbox-runtime", () => ({
   },
 }))
 
-import { SandboxPlugin } from "../src/index"
+import { isSandboxWrappedCommand, SandboxPlugin } from "../src/index"
 
 const makeCtx = (dir = "/tmp/project", worktree = "/tmp/project") => ({
   client: {} as any,
@@ -59,6 +59,35 @@ describe("SandboxPlugin", () => {
 
     expect(mockWrapWithSandbox).toHaveBeenCalledWith("ls -la")
     expect(output.args.command).toBe("srt-wrapped: ls -la")
+  })
+
+  test("does not wrap commands already wrapped by sandbox-runtime", async () => {
+    if (process.platform === "win32") return
+
+    const hooks = await SandboxPlugin(makeCtx())
+    const alreadyWrapped =
+      "bwrap --new-session --die-with-parent --setenv SANDBOX_RUNTIME 1 -- /usr/bin/bash -c 'echo hello'"
+    const input = { tool: "bash", sessionID: "s1", callID: "c1" }
+    const output = { args: { command: alreadyWrapped } }
+
+    await hooks["tool.execute.before"]?.(input, output)
+
+    expect(mockWrapWithSandbox).not.toHaveBeenCalled()
+    expect(output.args.command).toBe(alreadyWrapped)
+  })
+
+  test("detects sandbox-runtime wrappers without matching ordinary commands", () => {
+    expect(
+      isSandboxWrappedCommand(
+        "bwrap --new-session --die-with-parent --setenv SANDBOX_RUNTIME 1 -- /usr/bin/bash -c 'echo hello'",
+      ),
+    ).toBe(true)
+    expect(
+      isSandboxWrappedCommand(
+        "env SANDBOX_RUNTIME=1 TMPDIR=/tmp/claude /usr/bin/sandbox-exec -p '(version 1)' /bin/bash -c 'echo hello'",
+      ),
+    ).toBe(true)
+    expect(isSandboxWrappedCommand("echo SANDBOX_RUNTIME=1 bwrap")).toBe(false)
   })
 
   test("does not wrap non-bash tools", async () => {
