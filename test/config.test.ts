@@ -103,6 +103,13 @@ describe("resolveConfig", () => {
     expect(config.filesystem?.allowWrite).not.toContain("/usr")
   })
 
+  test("rejects macOS system paths from allowWrite", () => {
+    for (const unsafePath of ["/Library", "/System", "/private", "/Volumes", "/Users"]) {
+      const config = resolveConfig(unsafePath, "/project")
+      expect(config.filesystem?.allowWrite).not.toContain(unsafePath)
+    }
+  })
+
   test("deduplicates identical projectDir and worktree", () => {
     const config = resolveConfig("/project", "/project")
     const writeList = config.filesystem?.allowWrite ?? []
