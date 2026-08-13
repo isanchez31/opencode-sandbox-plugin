@@ -16,7 +16,7 @@ mock.module("@anthropic-ai/sandbox-runtime", () => ({
 import { isSandboxWrappedCommand, SandboxPlugin, server } from "../src/index"
 
 const makeCtx = (dir = "/tmp/project", worktree = "/tmp/project") => ({
-  client: {} as any,
+  client: { app: { log: mock(() => Promise.resolve()) } } as any,
   project: {} as any,
   directory: dir,
   worktree: worktree,
