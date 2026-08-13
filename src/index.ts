@@ -15,11 +15,6 @@ export function isSandboxWrappedCommand(command: string): boolean {
 }
 
 export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
-  if (process.platform === "win32") {
-    console.warn("[opencode-sandbox] Not supported on Windows — sandbox disabled")
-    return {}
-  }
-
   if (
     process.env.OPENCODE_DISABLE_SANDBOX === "1" ||
     process.env.OPENCODE_DISABLE_SANDBOX === "true"

@@ -12,7 +12,7 @@ Every `bash` tool invocation is wrapped with OS-level filesystem and network res
 |----------|-----------|
 | **macOS** | `sandbox-exec` (Seatbelt profiles) |
 | **Linux** | `bubblewrap` (namespace isolation) |
-| **Windows** | Not supported (commands pass through) |
+| **Windows** | `srt-win` (alpha; native Windows isolation) |
 
 ## Install
 
@@ -62,6 +62,16 @@ bwrap --ro-bind / / --dev /dev --proc /proc -- echo "sandbox works"
 ```
 
 Without this fix, bwrap will fail with `loopback: Failed RTM_NEWADDR: Operation not permitted` or `setting up uid map: Permission denied`.
+
+### Windows prerequisites (alpha)
+
+Windows support requires a one-time, elevated setup that creates the isolated sandbox account and network fence:
+
+```powershell
+npx @anthropic-ai/sandbox-runtime windows-install
+```
+
+The plugin fails open if this setup has not been completed, so OpenCode remains usable while reporting the initialization failure in its logs.
 
 ## What it does
 
