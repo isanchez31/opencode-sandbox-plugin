@@ -14,7 +14,9 @@ export function isSandboxWrappedCommand(command: string): boolean {
   return linuxWrapper || macosWrapper
 }
 
-export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
+export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => {
+  const log = (level: "debug" | "warn" | "error", message: string) =>
+    client.app.log({ body: { service: "opencode-sandbox", level, message } }).catch(() => undefined)
   if (
     process.env.OPENCODE_DISABLE_SANDBOX === "1" ||
     process.env.OPENCODE_DISABLE_SANDBOX === "true"
@@ -31,17 +33,17 @@ export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
   const ensureSandboxReady = () =>
     (initialization ??= SandboxManager.initialize(runtimeConfig)
       .then(() => {
-        console.log(
-          `[opencode-sandbox] Initialized — writes allowed in: ${runtimeConfig.filesystem?.allowWrite?.join(", ")}`,
+        void log(
+          "debug",
+          `Initialized — writes allowed in: ${runtimeConfig.filesystem?.allowWrite?.join(", ")}`,
         )
         return true
       })
       .catch((err) => {
-        console.error(
-          "[opencode-sandbox] Failed to initialize:",
-          err instanceof Error ? err.message : err,
+        void log(
+          "error",
+          `Failed to initialize; commands will run without sandbox: ${err instanceof Error ? err.message : String(err)}`,
         )
-        console.warn("[opencode-sandbox] Commands will run without sandbox")
         return false
       }))
 
@@ -61,9 +63,9 @@ export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
       try {
         output.args.command = await SandboxManager.wrapWithSandbox(command)
       } catch (err) {
-        console.warn(
-          "[opencode-sandbox] Failed to wrap command, running unsandboxed:",
-          err instanceof Error ? err.message : err,
+        void log(
+          "warn",
+          `Failed to wrap command; running unsandboxed: ${err instanceof Error ? err.message : String(err)}`,
         )
       }
     },
