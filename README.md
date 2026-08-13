@@ -12,7 +12,7 @@ Every `bash` tool invocation is wrapped with OS-level filesystem and network res
 |----------|-----------|
 | **macOS** | `sandbox-exec` (Seatbelt profiles) |
 | **Linux** | `bubblewrap` (namespace isolation) |
-| **Windows** | `srt-win` (alpha; native Windows isolation) |
+| **Windows** | Not currently supported by OpenCode's command-string hook (commands pass through) |
 
 ## Install
 
@@ -62,16 +62,6 @@ bwrap --ro-bind / / --dev /dev --proc /proc -- echo "sandbox works"
 ```
 
 Without this fix, bwrap will fail with `loopback: Failed RTM_NEWADDR: Operation not permitted` or `setting up uid map: Permission denied`.
-
-### Windows prerequisites (alpha)
-
-Windows support requires a one-time, elevated setup that creates the isolated sandbox account and network fence:
-
-```powershell
-npx @anthropic-ai/sandbox-runtime windows-install
-```
-
-The plugin fails open if this setup has not been completed, so OpenCode remains usable while reporting the initialization failure in its logs.
 
 ## What it does
 
@@ -260,6 +250,12 @@ Agent → bash tool → [plugin wraps command] → sandboxed execution → [plug
 ```
 
 The AI model interprets sandbox errors (like "Read-only file system" or "Connection blocked") directly from command output — no additional annotation layer needed.
+
+Sandbox initialization is deferred until the first `bash` command, so the plugin does not interfere with OpenCode startup. Plugin diagnostics are sent through OpenCode's structured logger instead of being printed into the TUI. Sandbox violations are correlated with each individual tool call, including concurrent or repeated commands.
+
+### Windows status
+
+`@anthropic-ai/sandbox-runtime` supports Windows through an argv-and-environment API, while OpenCode currently exposes this plugin's `bash` hook as a command string. Until those interfaces can be connected safely, this plugin leaves Windows commands unsandboxed rather than claiming protection it cannot enforce.
 
 ### Fail-open design
 

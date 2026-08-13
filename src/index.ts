@@ -17,6 +17,15 @@ export function isSandboxWrappedCommand(command: string): boolean {
 export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => {
   const log = (level: "debug" | "warn" | "error", message: string) =>
     client.app.log({ body: { service: "opencode-sandbox", level, message } }).catch(() => undefined)
+
+  if (process.platform === "win32") {
+    void log(
+      "warn",
+      "Windows sandboxing is not available through OpenCode's command-string hook; commands will run without sandbox",
+    )
+    return {}
+  }
+
   if (
     process.env.OPENCODE_DISABLE_SANDBOX === "1" ||
     process.env.OPENCODE_DISABLE_SANDBOX === "true"
