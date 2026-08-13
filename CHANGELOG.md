@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0](https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.3.2...v0.4.0) (2026-08-13)
+
+
+### Added
+
+* enable Windows sandbox support ([#69](https://github.com/isanchez31/opencode-sandbox-plugin/issues/69)) ([7c0074d](https://github.com/isanchez31/opencode-sandbox-plugin/commit/7c0074dfeb20a503d31f2ca963f85991268259f9))
+
+
+### Fixed
+
+* declare the OpenCode server plugin target ([#68](https://github.com/isanchez31/opencode-sandbox-plugin/issues/68)) ([71f9760](https://github.com/isanchez31/opencode-sandbox-plugin/commit/71f9760ca65cc799d3e7fa37b57ef1b183113466))
+* defer sandbox initialization until command execution ([#71](https://github.com/isanchez31/opencode-sandbox-plugin/issues/71)) ([a8a2e86](https://github.com/isanchez31/opencode-sandbox-plugin/commit/a8a2e868805eb5f875c218c6a1b562d98f69f40d))
+* use structured OpenCode logging ([#70](https://github.com/isanchez31/opencode-sandbox-plugin/issues/70)) ([f80bd37](https://github.com/isanchez31/opencode-sandbox-plugin/commit/f80bd373307075d4b7cf378c0fd351be558b34df))
+
 ## [0.3.2](https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.3.1...v0.3.2) (2026-08-01)
 
 
