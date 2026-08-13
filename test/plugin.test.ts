@@ -66,7 +66,10 @@ describe("SandboxPlugin", () => {
 
     await hooks["tool.execute.before"]?.(input, output)
 
-    expect(mockWrapWithSandbox).toHaveBeenCalledWith("ls -la")
+    expect(mockWrapWithSandbox).toHaveBeenCalledWith("ls -la", undefined, undefined, undefined, {
+      commandId: "c1",
+      commandText: "ls -la",
+    })
     expect(output.args.command).toBe("srt-wrapped: ls -la")
   })
 

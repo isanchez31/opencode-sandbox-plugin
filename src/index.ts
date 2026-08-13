@@ -61,7 +61,13 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => 
       originalCommands.set(input.callID, command)
 
       try {
-        output.args.command = await SandboxManager.wrapWithSandbox(command)
+        output.args.command = await SandboxManager.wrapWithSandbox(
+          command,
+          undefined,
+          undefined,
+          undefined,
+          { commandId: input.callID, commandText: command },
+        )
       } catch (err) {
         void log(
           "warn",
