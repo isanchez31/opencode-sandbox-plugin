@@ -2,6 +2,9 @@
   "name": "opencode-sandbox",
   "version": "0.3.2",
   "description": "OpenCode plugin that sandboxes agent commands using @anthropic-ai/sandbox-runtime (seatbelt on macOS, bubblewrap on Linux)",
+  "oc-plugin": [
+    "server"
+  ],
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

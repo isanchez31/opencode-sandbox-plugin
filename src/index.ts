@@ -84,4 +84,8 @@ export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
   }
 }
 
+// OpenCode 1.3.8+ discovers npm plugins through the target declared in
+// package.json's `oc-plugin` field.
+export const server = SandboxPlugin
+
 export default SandboxPlugin

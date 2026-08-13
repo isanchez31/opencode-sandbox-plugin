@@ -13,7 +13,7 @@ mock.module("@anthropic-ai/sandbox-runtime", () => ({
   },
 }))
 
-import { isSandboxWrappedCommand, SandboxPlugin } from "../src/index"
+import { isSandboxWrappedCommand, SandboxPlugin, server } from "../src/index"
 
 const makeCtx = (dir = "/tmp/project", worktree = "/tmp/project") => ({
   client: {} as any,
@@ -30,6 +30,10 @@ describe("SandboxPlugin", () => {
     mockWrapWithSandbox.mockClear()
     delete process.env.OPENCODE_DISABLE_SANDBOX
     delete process.env.OPENCODE_SANDBOX_CONFIG
+  })
+
+  test("exports the server plugin target", () => {
+    expect(server).toBe(SandboxPlugin)
   })
 
   test("initializes sandbox on plugin load", async () => {
