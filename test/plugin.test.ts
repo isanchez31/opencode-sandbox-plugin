@@ -36,13 +36,18 @@ describe("SandboxPlugin", () => {
     expect(server).toBe(SandboxPlugin)
   })
 
-  test("initializes sandbox on plugin load", async () => {
+  test("initializes sandbox only when the first bash command runs", async () => {
     if (process.platform === "win32") return
 
     const hooks = await SandboxPlugin(makeCtx())
-    expect(mockInitialize).toHaveBeenCalledTimes(1)
+    expect(mockInitialize).not.toHaveBeenCalled()
     expect(hooks["tool.execute.before"]).toBeDefined()
     expect(hooks["tool.execute.after"]).toBeDefined()
+
+    const input = { tool: "bash", sessionID: "s1", callID: "c1" }
+    const output = { args: { command: "echo hello" } }
+    await hooks["tool.execute.before"]?.(input, output)
+    expect(mockInitialize).toHaveBeenCalledTimes(1)
   })
 
   test("returns empty hooks when OPENCODE_DISABLE_SANDBOX=1", async () => {
@@ -148,7 +153,11 @@ describe("SandboxPlugin", () => {
       },
     })
 
-    await SandboxPlugin(makeCtx())
+    const hooks = await SandboxPlugin(makeCtx())
+    await hooks["tool.execute.before"]?.(
+      { tool: "bash", sessionID: "s1", callID: "c1" },
+      { args: { command: "echo hello" } },
+    )
 
     const callArg = mockInitialize.mock.calls[0]?.[0] as any
     expect(callArg.filesystem.denyRead).toEqual(["/custom/secret"])

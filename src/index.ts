@@ -27,22 +27,23 @@ export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
 
   const runtimeConfig = resolveConfig(directory, worktree, userConfig)
 
-  let sandboxReady = false
-  try {
-    await SandboxManager.initialize(runtimeConfig)
-    sandboxReady = true
-    console.log(
-      `[opencode-sandbox] Initialized — writes allowed in: ${runtimeConfig.filesystem?.allowWrite?.join(", ")}`,
-    )
-  } catch (err) {
-    console.error(
-      "[opencode-sandbox] Failed to initialize:",
-      err instanceof Error ? err.message : err,
-    )
-    console.warn("[opencode-sandbox] Commands will run without sandbox")
-  }
-
-  if (!sandboxReady) return {}
+  let initialization: Promise<boolean> | undefined
+  const ensureSandboxReady = () =>
+    (initialization ??= SandboxManager.initialize(runtimeConfig)
+      .then(() => {
+        console.log(
+          `[opencode-sandbox] Initialized — writes allowed in: ${runtimeConfig.filesystem?.allowWrite?.join(", ")}`,
+        )
+        return true
+      })
+      .catch((err) => {
+        console.error(
+          "[opencode-sandbox] Failed to initialize:",
+          err instanceof Error ? err.message : err,
+        )
+        console.warn("[opencode-sandbox] Commands will run without sandbox")
+        return false
+      }))
 
   const originalCommands = new Map<string, string>()
 
@@ -53,6 +54,7 @@ export const SandboxPlugin: Plugin = async ({ directory, worktree }) => {
       const command = output.args?.command
       if (typeof command !== "string" || !command) return
       if (isSandboxWrappedCommand(command)) return
+      if (!(await ensureSandboxReady())) return
 
       originalCommands.set(input.callID, command)
 
