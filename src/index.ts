@@ -67,8 +67,6 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => 
       if (isSandboxWrappedCommand(command)) return
       if (!(await ensureSandboxReady())) return
 
-      originalCommands.set(input.callID, command)
-
       try {
         output.args.command = await SandboxManager.wrapWithSandbox(
           command,
@@ -77,6 +75,7 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => 
           undefined,
           { commandId: input.callID, commandText: command },
         )
+        originalCommands.set(input.callID, command)
       } catch (err) {
         void log(
           "warn",
@@ -90,9 +89,20 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => 
 
       // Restore original command so the UI shows it instead of the bwrap wrapper
       const originalCommand = originalCommands.get(input.callID)
-      if (originalCommand && input.args && typeof input.args.command === "string") {
+      if (originalCommand === undefined) return
+
+      if (input.args && typeof input.args.command === "string") {
         input.args.command = originalCommand
-        originalCommands.delete(input.callID)
+      }
+      originalCommands.delete(input.callID)
+
+      try {
+        SandboxManager.cleanupAfterCommand()
+      } catch (err) {
+        void log(
+          "warn",
+          `Failed to clean up sandbox mount points: ${err instanceof Error ? err.message : String(err)}`,
+        )
       }
     },
   }

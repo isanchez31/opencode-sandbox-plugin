@@ -3,12 +3,14 @@ import { beforeEach, describe, expect, mock, test } from "bun:test"
 // Mock the SandboxManager before importing the plugin
 const mockInitialize = mock(() => Promise.resolve())
 const mockWrapWithSandbox = mock((cmd: string) => Promise.resolve(`srt-wrapped: ${cmd}`))
+const mockCleanupAfterCommand = mock(() => undefined)
 const mockReset = mock(() => Promise.resolve())
 
 mock.module("@anthropic-ai/sandbox-runtime", () => ({
   SandboxManager: {
     initialize: mockInitialize,
     wrapWithSandbox: mockWrapWithSandbox,
+    cleanupAfterCommand: mockCleanupAfterCommand,
     reset: mockReset,
   },
 }))
@@ -28,6 +30,7 @@ describe("SandboxPlugin", () => {
   beforeEach(() => {
     mockInitialize.mockClear()
     mockWrapWithSandbox.mockClear()
+    mockCleanupAfterCommand.mockClear()
     delete process.env.OPENCODE_DISABLE_SANDBOX
     delete process.env.OPENCODE_SANDBOX_CONFIG
   })
@@ -218,5 +221,41 @@ describe("SandboxPlugin", () => {
 
     expect(afterInput1.args.command).toBe("echo first")
     expect(afterInput2.args.command).toBe("echo second")
+    expect(mockCleanupAfterCommand).toHaveBeenCalledTimes(2)
+  })
+
+  test("cleans up Linux mount points after a wrapped bash command", async () => {
+    if (process.platform === "win32") return
+
+    const hooks = await SandboxPlugin(makeCtx())
+    const beforeInput = { tool: "bash", sessionID: "s1", callID: "c1" }
+    const beforeOutput = { args: { command: "echo hello" } }
+    await hooks["tool.execute.before"]?.(beforeInput, beforeOutput)
+
+    await hooks["tool.execute.after"]?.(
+      {
+        ...beforeInput,
+        args: { command: beforeOutput.args.command },
+      },
+      {},
+    )
+
+    expect(mockCleanupAfterCommand).toHaveBeenCalledTimes(1)
+  })
+
+  test("does not clean up a command that failed to wrap", async () => {
+    if (process.platform === "win32") return
+
+    mockWrapWithSandbox.mockImplementationOnce(() => {
+      throw new Error("bwrap not found")
+    })
+
+    const hooks = await SandboxPlugin(makeCtx())
+    const input = { tool: "bash", sessionID: "s1", callID: "c1" }
+    const output = { args: { command: "echo hello" } }
+    await hooks["tool.execute.before"]?.(input, output)
+    await hooks["tool.execute.after"]?.({ ...input, args: output.args }, {})
+
+    expect(mockCleanupAfterCommand).not.toHaveBeenCalled()
   })
 })
