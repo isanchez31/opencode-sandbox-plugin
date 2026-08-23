@@ -258,4 +258,72 @@ describe("SandboxPlugin", () => {
 
     expect(mockCleanupAfterCommand).not.toHaveBeenCalled()
   })
+
+  test("cleans up when an interrupted bash call never reaches tool.execute.after", async () => {
+    if (process.platform === "win32") return
+
+    const hooks = await SandboxPlugin(makeCtx())
+    const input = { tool: "bash", sessionID: "s1", callID: "c1" }
+    await hooks["tool.execute.before"]?.(input, { args: { command: "sleep 100" } })
+
+    // On interrupt OpenCode marks the in-flight tool part errored instead of
+    // running tool.execute.after
+    await hooks.event?.({
+      event: {
+        type: "message.part.updated",
+        properties: {
+          part: {
+            type: "tool",
+            callID: "c1",
+            state: { status: "error", error: "Tool execution aborted" },
+          },
+        },
+      } as any,
+    })
+
+    expect(mockCleanupAfterCommand).toHaveBeenCalledTimes(1)
+  })
+
+  test("cleans up interrupted calls at most once", async () => {
+    if (process.platform === "win32") return
+
+    const hooks = await SandboxPlugin(makeCtx())
+    const input = { tool: "bash", sessionID: "s1", callID: "c1" }
+    const output = { args: { command: "sleep 100" } }
+    await hooks["tool.execute.before"]?.(input, output)
+
+    const errored = {
+      event: {
+        type: "message.part.updated",
+        properties: {
+          part: { type: "tool", callID: "c1", state: { status: "error", error: "aborted" } },
+        },
+      } as any,
+    }
+    await hooks.event?.(errored)
+    await hooks.event?.(errored)
+    await hooks["tool.execute.after"]?.({ ...input, args: output.args }, {})
+
+    expect(mockCleanupAfterCommand).toHaveBeenCalledTimes(1)
+  })
+
+  test("session.idle cleans up only its own session's leftover commands", async () => {
+    if (process.platform === "win32") return
+
+    const hooks = await SandboxPlugin(makeCtx())
+    await hooks["tool.execute.before"]?.(
+      { tool: "bash", sessionID: "s1", callID: "c1" },
+      { args: { command: "sleep 100" } },
+    )
+    await hooks["tool.execute.before"]?.(
+      { tool: "bash", sessionID: "s2", callID: "c2" },
+      { args: { command: "sleep 100" } },
+    )
+
+    await hooks.event?.({
+      event: { type: "session.idle", properties: { sessionID: "s1" } } as any,
+    })
+
+    expect(mockCleanupAfterCommand).toHaveBeenCalledTimes(1)
+  })
 })
