@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2](https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.5.1...v0.5.2) (2026-08-28)
+
+
+### Fixed
+
+* clean up sandbox mount points after wrapped commands ([5ba9184](https://github.com/isanchez31/opencode-sandbox-plugin/commit/5ba91840affe1f0a85c34a9390decd13986aecbe))
+* clean up sandbox mount points after wrapped commands ([0de7354](https://github.com/isanchez31/opencode-sandbox-plugin/commit/0de73544a7b4234c2bf2e3ba89aec2ce00e6fd3a))
+* clean up sandbox mount points when a command is interrupted ([d2da2a5](https://github.com/isanchez31/opencode-sandbox-plugin/commit/d2da2a53f3c99164e242abb265b72d06fa9ac072))
+* hide sandbox wrapper from tool history ([25a2167](https://github.com/isanchez31/opencode-sandbox-plugin/commit/25a216779e58887f742ce58d084ae95ae84eed69))
+* hide sandbox wrapper from tool history ([47ec059](https://github.com/isanchez31/opencode-sandbox-plugin/commit/47ec059fb58b788c91b39445669a2cbe761aba2f))
+
 ## [0.5.1](https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.5.0...v0.5.1) (2026-08-13)
 
 
