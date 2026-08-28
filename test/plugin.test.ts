@@ -17,8 +17,12 @@ mock.module("@anthropic-ai/sandbox-runtime", () => ({
 
 import { isSandboxWrappedCommand, SandboxPlugin, server } from "../src/index"
 
-const makeCtx = (dir = "/tmp/project", worktree = "/tmp/project") => ({
-  client: { app: { log: mock(() => Promise.resolve()) } } as any,
+const makeCtx = (
+  dir = "/tmp/project",
+  worktree = "/tmp/project",
+  client = { app: { log: mock(() => Promise.resolve()) } },
+) => ({
+  client: client as any,
   project: {} as any,
   directory: dir,
   worktree: worktree,
@@ -325,5 +329,81 @@ describe("SandboxPlugin", () => {
     })
 
     expect(mockCleanupAfterCommand).toHaveBeenCalledTimes(1)
+  })
+
+  test("restores original command in persisted tool part history", async () => {
+    if (process.platform === "win32") return
+
+    const update = mock(() => Promise.resolve())
+    const hooks = await SandboxPlugin(
+      makeCtx("/tmp/project", "/tmp/project", {
+        app: { log: mock(() => Promise.resolve()) },
+        part: { update },
+      }),
+    )
+
+    const beforeOutput = { args: { command: "git status" } }
+    await hooks["tool.execute.before"]?.(
+      { tool: "bash", sessionID: "s1", callID: "c1" },
+      beforeOutput,
+    )
+
+    const part = {
+      id: "p1",
+      sessionID: "s1",
+      messageID: "m1",
+      type: "tool",
+      tool: "bash",
+      callID: "c1",
+      state: { status: "running", input: { command: beforeOutput.args.command } },
+    }
+
+    await hooks.event?.({
+      event: { type: "message.part.updated", properties: { part } } as any,
+    })
+
+    expect(part.state.input.command).toBe("git status")
+    expect(update).toHaveBeenCalledWith({
+      sessionID: "s1",
+      messageID: "m1",
+      partID: "p1",
+      part,
+    })
+    expect(mockCleanupAfterCommand).not.toHaveBeenCalled()
+  })
+
+  test("restores persisted tool part only once per part", async () => {
+    if (process.platform === "win32") return
+
+    const update = mock(() => Promise.resolve())
+    const hooks = await SandboxPlugin(
+      makeCtx("/tmp/project", "/tmp/project", {
+        app: { log: mock(() => Promise.resolve()) },
+        part: { update },
+      }),
+    )
+
+    const beforeOutput = { args: { command: "echo hello" } }
+    await hooks["tool.execute.before"]?.(
+      { tool: "bash", sessionID: "s1", callID: "c1" },
+      beforeOutput,
+    )
+
+    const part = {
+      id: "p1",
+      sessionID: "s1",
+      messageID: "m1",
+      type: "tool",
+      tool: "bash",
+      callID: "c1",
+      state: { status: "running", input: { command: beforeOutput.args.command } },
+    }
+
+    await hooks.event?.({ event: { type: "message.part.updated", properties: { part } } as any })
+    part.state.input.command = beforeOutput.args.command
+    await hooks.event?.({ event: { type: "message.part.updated", properties: { part } } as any })
+
+    expect(update).toHaveBeenCalledTimes(1)
+    expect(part.state.input.command).toBe("echo hello")
   })
 })

@@ -56,7 +56,70 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => 
         return false
       }))
 
-  const inFlight = new Map<string, { command: string; sessionID: string }>()
+  type MutableToolPart = {
+    id?: string
+    sessionID?: string
+    messageID?: string
+    callID: string
+    tool?: string
+    state?: { input?: { command?: unknown }; status?: string }
+  }
+
+  type ClientWithPartUpdate = typeof client & {
+    part?: {
+      update?: (input: {
+        sessionID: string
+        messageID: string
+        partID: string
+        part: MutableToolPart
+      }) => Promise<unknown>
+    }
+  }
+
+  const inFlight = new Map<
+    string,
+    { command: string; sessionID: string; scrubbedPartIDs: Set<string> }
+  >()
+
+  const scrubToolPartInput = async (part: MutableToolPart) => {
+    const pending = inFlight.get(part.callID)
+    if (pending === undefined) return
+    if (part.tool !== undefined && part.tool !== "bash") return
+
+    const input = part.state?.input
+    if (input === undefined) return
+    const command = input.command
+    if (typeof command !== "string" || command === pending.command) return
+
+    input.command = pending.command
+
+    if (
+      typeof part.id !== "string" ||
+      typeof part.sessionID !== "string" ||
+      typeof part.messageID !== "string" ||
+      pending.scrubbedPartIDs.has(part.id)
+    ) {
+      return
+    }
+    pending.scrubbedPartIDs.add(part.id)
+
+    const partClient = (client as ClientWithPartUpdate).part
+    if (typeof partClient?.update !== "function") return
+
+    try {
+      await partClient.update({
+        sessionID: part.sessionID,
+        messageID: part.messageID,
+        partID: part.id,
+        part,
+      })
+    } catch (err) {
+      void log(
+        "warn",
+        `Failed to restore original command in tool history: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+  }
 
   // Must run exactly once per successful wrapWithSandbox() call: the runtime
   // refcounts mount points, and a missing cleanup leaves the count stuck above zero,
@@ -92,7 +155,11 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => 
           undefined,
           { commandId: input.callID, commandText: command },
         )
-        inFlight.set(input.callID, { command, sessionID: input.sessionID })
+        inFlight.set(input.callID, {
+          command,
+          sessionID: input.sessionID,
+          scrubbedPartIDs: new Set(),
+        })
       } catch (err) {
         void log(
           "warn",
@@ -128,6 +195,7 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => 
         // On interrupt OpenCode marks the in-flight tool part as
         // status "error" / metadata.interrupted; normal completion lands here too.
         if (part.type !== "tool") return
+        await scrubToolPartInput(part)
         if (part.state.status !== "error" && part.state.status !== "completed") return
         finishCommand(part.callID)
         return
