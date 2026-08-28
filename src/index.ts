@@ -56,7 +56,24 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => 
         return false
       }))
 
-  const originalCommands = new Map<string, string>()
+  const inFlight = new Map<string, { command: string; sessionID: string }>()
+
+  // Must run exactly once per successful wrapWithSandbox() call: the runtime
+  // refcounts mount points, and a missing cleanup leaves the count stuck above zero,
+  // deferring cleanup for every later command too. Deleting from the map first keeps
+  // this idempotent when both the after hook and the event hook see the same callID.
+  const finishCommand = (callID: string) => {
+    if (!inFlight.delete(callID)) return
+
+    try {
+      SandboxManager.cleanupAfterCommand()
+    } catch (err) {
+      void log(
+        "warn",
+        `Failed to clean up sandbox mount points: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+  }
 
   return {
     "tool.execute.before": async (input, output) => {
@@ -67,8 +84,6 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => 
       if (isSandboxWrappedCommand(command)) return
       if (!(await ensureSandboxReady())) return
 
-      originalCommands.set(input.callID, command)
-
       try {
         output.args.command = await SandboxManager.wrapWithSandbox(
           command,
@@ -77,6 +92,7 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => 
           undefined,
           { commandId: input.callID, commandText: command },
         )
+        inFlight.set(input.callID, { command, sessionID: input.sessionID })
       } catch (err) {
         void log(
           "warn",
@@ -88,11 +104,42 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => 
     "tool.execute.after": async (input, _output) => {
       if (input.tool !== "bash") return
 
-      // Restore original command so the UI shows it instead of the bwrap wrapper
-      const originalCommand = originalCommands.get(input.callID)
-      if (originalCommand && input.args && typeof input.args.command === "string") {
-        input.args.command = originalCommand
-        originalCommands.delete(input.callID)
+      // Restore the original command on the args object. NOTE: this does not
+      // change what the UI displays — part.state.input is snapshotted at the
+      // tool-call event (processor.ts:345) and only copied forward after that.
+      // It only matters if/when the bash tool streams ctx.metadata, which
+      // re-publishes `input: args` live (tools.ts:76).
+      const pending = inFlight.get(input.callID)
+      if (pending === undefined) return
+
+      if (input.args && typeof input.args.command === "string") {
+        input.args.command = pending.command
+      }
+
+      finishCommand(input.callID)
+    },
+
+    // tool.execute.after never fires for an interrupted tool call — OpenCode aborts
+    // the effect before reaching the hook — so fall back to the event bus, which does
+    // report the abort. Without this, mount points from an interrupted command leak.
+    event: async ({ event }) => {
+      if (event.type === "message.part.updated") {
+        const { part } = event.properties
+        // On interrupt OpenCode marks the in-flight tool part as
+        // status "error" / metadata.interrupted; normal completion lands here too.
+        if (part.type !== "tool") return
+        if (part.state.status !== "error" && part.state.status !== "completed") return
+        finishCommand(part.callID)
+        return
+      }
+
+      // Backstop for anything the part update missed: once a session is idle none of
+      // its commands can still be running.
+      if (event.type === "session.idle") {
+        const { sessionID } = event.properties
+        for (const [callID, pending] of [...inFlight]) {
+          if (pending.sessionID === sessionID) finishCommand(callID)
+        }
       }
     },
   }

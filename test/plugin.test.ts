@@ -3,12 +3,14 @@ import { beforeEach, describe, expect, mock, test } from "bun:test"
 // Mock the SandboxManager before importing the plugin
 const mockInitialize = mock(() => Promise.resolve())
 const mockWrapWithSandbox = mock((cmd: string) => Promise.resolve(`srt-wrapped: ${cmd}`))
+const mockCleanupAfterCommand = mock(() => undefined)
 const mockReset = mock(() => Promise.resolve())
 
 mock.module("@anthropic-ai/sandbox-runtime", () => ({
   SandboxManager: {
     initialize: mockInitialize,
     wrapWithSandbox: mockWrapWithSandbox,
+    cleanupAfterCommand: mockCleanupAfterCommand,
     reset: mockReset,
   },
 }))
@@ -28,6 +30,7 @@ describe("SandboxPlugin", () => {
   beforeEach(() => {
     mockInitialize.mockClear()
     mockWrapWithSandbox.mockClear()
+    mockCleanupAfterCommand.mockClear()
     delete process.env.OPENCODE_DISABLE_SANDBOX
     delete process.env.OPENCODE_SANDBOX_CONFIG
   })
@@ -218,5 +221,109 @@ describe("SandboxPlugin", () => {
 
     expect(afterInput1.args.command).toBe("echo first")
     expect(afterInput2.args.command).toBe("echo second")
+    expect(mockCleanupAfterCommand).toHaveBeenCalledTimes(2)
+  })
+
+  test("cleans up Linux mount points after a wrapped bash command", async () => {
+    if (process.platform === "win32") return
+
+    const hooks = await SandboxPlugin(makeCtx())
+    const beforeInput = { tool: "bash", sessionID: "s1", callID: "c1" }
+    const beforeOutput = { args: { command: "echo hello" } }
+    await hooks["tool.execute.before"]?.(beforeInput, beforeOutput)
+
+    await hooks["tool.execute.after"]?.(
+      {
+        ...beforeInput,
+        args: { command: beforeOutput.args.command },
+      },
+      {},
+    )
+
+    expect(mockCleanupAfterCommand).toHaveBeenCalledTimes(1)
+  })
+
+  test("does not clean up a command that failed to wrap", async () => {
+    if (process.platform === "win32") return
+
+    mockWrapWithSandbox.mockImplementationOnce(() => {
+      throw new Error("bwrap not found")
+    })
+
+    const hooks = await SandboxPlugin(makeCtx())
+    const input = { tool: "bash", sessionID: "s1", callID: "c1" }
+    const output = { args: { command: "echo hello" } }
+    await hooks["tool.execute.before"]?.(input, output)
+    await hooks["tool.execute.after"]?.({ ...input, args: output.args }, {})
+
+    expect(mockCleanupAfterCommand).not.toHaveBeenCalled()
+  })
+
+  test("cleans up when an interrupted bash call never reaches tool.execute.after", async () => {
+    if (process.platform === "win32") return
+
+    const hooks = await SandboxPlugin(makeCtx())
+    const input = { tool: "bash", sessionID: "s1", callID: "c1" }
+    await hooks["tool.execute.before"]?.(input, { args: { command: "sleep 100" } })
+
+    // On interrupt OpenCode marks the in-flight tool part errored instead of
+    // running tool.execute.after
+    await hooks.event?.({
+      event: {
+        type: "message.part.updated",
+        properties: {
+          part: {
+            type: "tool",
+            callID: "c1",
+            state: { status: "error", error: "Tool execution aborted" },
+          },
+        },
+      } as any,
+    })
+
+    expect(mockCleanupAfterCommand).toHaveBeenCalledTimes(1)
+  })
+
+  test("cleans up interrupted calls at most once", async () => {
+    if (process.platform === "win32") return
+
+    const hooks = await SandboxPlugin(makeCtx())
+    const input = { tool: "bash", sessionID: "s1", callID: "c1" }
+    const output = { args: { command: "sleep 100" } }
+    await hooks["tool.execute.before"]?.(input, output)
+
+    const errored = {
+      event: {
+        type: "message.part.updated",
+        properties: {
+          part: { type: "tool", callID: "c1", state: { status: "error", error: "aborted" } },
+        },
+      } as any,
+    }
+    await hooks.event?.(errored)
+    await hooks.event?.(errored)
+    await hooks["tool.execute.after"]?.({ ...input, args: output.args }, {})
+
+    expect(mockCleanupAfterCommand).toHaveBeenCalledTimes(1)
+  })
+
+  test("session.idle cleans up only its own session's leftover commands", async () => {
+    if (process.platform === "win32") return
+
+    const hooks = await SandboxPlugin(makeCtx())
+    await hooks["tool.execute.before"]?.(
+      { tool: "bash", sessionID: "s1", callID: "c1" },
+      { args: { command: "sleep 100" } },
+    )
+    await hooks["tool.execute.before"]?.(
+      { tool: "bash", sessionID: "s2", callID: "c2" },
+      { args: { command: "sleep 100" } },
+    )
+
+    await hooks.event?.({
+      event: { type: "session.idle", properties: { sessionID: "s1" } } as any,
+    })
+
+    expect(mockCleanupAfterCommand).toHaveBeenCalledTimes(1)
   })
 })
