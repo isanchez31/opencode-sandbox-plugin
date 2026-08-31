@@ -58,7 +58,7 @@
     "registry": "https://registry.npmjs.org/"
   },
   "dependencies": {
-    "@anthropic-ai/sandbox-runtime": "^0.0.73"
+    "@anthropic-ai/sandbox-runtime": "^0.0.74"
   },
   "peerDependencies": {
     "@opencode-ai/plugin": ">=1.0.0"
