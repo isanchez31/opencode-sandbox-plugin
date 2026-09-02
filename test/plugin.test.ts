@@ -15,7 +15,8 @@ mock.module("@anthropic-ai/sandbox-runtime", () => ({
   },
 }))
 
-import { isSandboxWrappedCommand, SandboxPlugin, server } from "../src/index"
+import * as pluginModule from "../src/index"
+import { SandboxPlugin, server } from "../src/index"
 
 const makeCtx = (
   dir = "/tmp/project",
@@ -41,6 +42,17 @@ describe("SandboxPlugin", () => {
 
   test("exports the server plugin target", () => {
     expect(server).toBe(SandboxPlugin)
+  })
+
+  test("exposes no helper functions for legacy plugin discovery", async () => {
+    const plugins = [
+      ...new Set(Object.values(pluginModule).filter((value) => typeof value === "function")),
+    ]
+    expect(plugins).toEqual([SandboxPlugin])
+
+    for (const plugin of plugins) {
+      await (plugin as typeof SandboxPlugin)(makeCtx())
+    }
   })
 
   test("initializes sandbox only when the first bash command runs", async () => {
@@ -95,18 +107,30 @@ describe("SandboxPlugin", () => {
     expect(output.args.command).toBe(alreadyWrapped)
   })
 
-  test("detects sandbox-runtime wrappers without matching ordinary commands", () => {
-    expect(
-      isSandboxWrappedCommand(
-        "bwrap --new-session --die-with-parent --setenv SANDBOX_RUNTIME 1 -- /usr/bin/bash -c 'echo hello'",
-      ),
-    ).toBe(true)
-    expect(
-      isSandboxWrappedCommand(
-        "env SANDBOX_RUNTIME=1 TMPDIR=/tmp/claude /usr/bin/sandbox-exec -p '(version 1)' /bin/bash -c 'echo hello'",
-      ),
-    ).toBe(true)
-    expect(isSandboxWrappedCommand("echo SANDBOX_RUNTIME=1 bwrap")).toBe(false)
+  test("detects sandbox-runtime wrappers without matching ordinary commands", async () => {
+    if (process.platform === "win32") return
+
+    const hooks = await SandboxPlugin(makeCtx())
+    const linuxWrapper =
+      "bwrap --new-session --die-with-parent --setenv SANDBOX_RUNTIME 1 -- /usr/bin/bash -c 'echo hello'"
+    const macosWrapper =
+      "env SANDBOX_RUNTIME=1 TMPDIR=/tmp/claude /usr/bin/sandbox-exec -p '(version 1)' /bin/bash -c 'echo hello'"
+    const ordinaryCommand = "echo SANDBOX_RUNTIME=1 bwrap"
+    const outputs = [linuxWrapper, macosWrapper, ordinaryCommand].map((command) => ({
+      args: { command },
+    }))
+
+    for (const [index, output] of outputs.entries()) {
+      await hooks["tool.execute.before"]?.(
+        { tool: "bash", sessionID: "s1", callID: `c${index + 1}` },
+        output,
+      )
+    }
+
+    expect(outputs[0]?.args.command).toBe(linuxWrapper)
+    expect(outputs[1]?.args.command).toBe(macosWrapper)
+    expect(outputs[2]?.args.command).toBe(`srt-wrapped: ${ordinaryCommand}`)
+    expect(mockWrapWithSandbox).toHaveBeenCalledTimes(1)
   })
 
   test("does not wrap non-bash tools", async () => {
@@ -370,6 +394,40 @@ describe("SandboxPlugin", () => {
       part,
     })
     expect(mockCleanupAfterCommand).not.toHaveBeenCalled()
+  })
+
+  test("restores the persisted command after tool.execute.after runs", async () => {
+    if (process.platform === "win32") return
+
+    const update = mock(() => Promise.resolve())
+    const hooks = await SandboxPlugin(
+      makeCtx("/tmp/project", "/tmp/project", {
+        app: { log: mock(() => Promise.resolve()) },
+        part: { update },
+      }),
+    )
+
+    const input = { tool: "bash", sessionID: "s1", callID: "c1" }
+    const output = { args: { command: "git status" } }
+    await hooks["tool.execute.before"]?.(input, output)
+    await hooks["tool.execute.after"]?.({ ...input, args: output.args }, {})
+
+    const part = {
+      id: "p1",
+      sessionID: "s1",
+      messageID: "m1",
+      type: "tool",
+      tool: "bash",
+      callID: "c1",
+      state: { status: "completed", input: { command: "srt-wrapped: git status" } },
+    }
+    await hooks.event?.({
+      event: { type: "message.part.updated", properties: { part } } as any,
+    })
+
+    expect(part.state.input.command).toBe("git status")
+    expect(update).toHaveBeenCalledTimes(1)
+    expect(mockCleanupAfterCommand).toHaveBeenCalledTimes(1)
   })
 
   test("restores persisted tool part only once per part", async () => {

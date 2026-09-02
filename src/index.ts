@@ -4,7 +4,7 @@ import { loadConfig, resolveConfig } from "./config"
 
 export type { SandboxPluginConfig } from "./config"
 
-export function isSandboxWrappedCommand(command: string): boolean {
+function isSandboxWrappedCommand(command: string): boolean {
   const trimmed = command.trim()
   const linuxWrapper =
     /^(?:[^\s'"]*\/)?bwrap\s/.test(trimmed) &&
@@ -78,7 +78,7 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => 
 
   const inFlight = new Map<
     string,
-    { command: string; sessionID: string; scrubbedPartIDs: Set<string> }
+    { command: string; sessionID: string; scrubbedPartIDs: Set<string>; cleaned: boolean }
   >()
 
   const scrubToolPartInput = async (part: MutableToolPart) => {
@@ -123,10 +123,10 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => 
 
   // Must run exactly once per successful wrapWithSandbox() call: the runtime
   // refcounts mount points, and a missing cleanup leaves the count stuck above zero,
-  // deferring cleanup for every later command too. Deleting from the map first keeps
-  // this idempotent when both the after hook and the event hook see the same callID.
-  const finishCommand = (callID: string) => {
-    if (!inFlight.delete(callID)) return
+  // deferring cleanup for every later command too.
+  const cleanupCommand = (pending: { cleaned: boolean }) => {
+    if (pending.cleaned) return
+    pending.cleaned = true
 
     try {
       SandboxManager.cleanupAfterCommand()
@@ -136,6 +136,13 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => 
         `Failed to clean up sandbox mount points: ${err instanceof Error ? err.message : String(err)}`,
       )
     }
+  }
+
+  const finishCommand = (callID: string) => {
+    const pending = inFlight.get(callID)
+    if (pending === undefined) return
+    inFlight.delete(callID)
+    cleanupCommand(pending)
   }
 
   return {
@@ -159,6 +166,7 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => 
           command,
           sessionID: input.sessionID,
           scrubbedPartIDs: new Set(),
+          cleaned: false,
         })
       } catch (err) {
         void log(
@@ -183,7 +191,9 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => 
         input.args.command = pending.command
       }
 
-      finishCommand(input.callID)
+      // The final persisted part update arrives after this hook. Clean up now, but
+      // retain the original command until that event has had a chance to scrub it.
+      cleanupCommand(pending)
     },
 
     // tool.execute.after never fires for an interrupted tool call — OpenCode aborts
