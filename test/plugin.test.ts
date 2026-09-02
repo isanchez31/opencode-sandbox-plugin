@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test"
+import { createOpencodeClient } from "@opencode-ai/sdk"
 
 // Mock the SandboxManager before importing the plugin
 const mockInitialize = mock(() => Promise.resolve())
@@ -17,6 +18,8 @@ mock.module("@anthropic-ai/sandbox-runtime", () => ({
 
 import * as pluginModule from "../src/index"
 import { SandboxPlugin, server } from "../src/index"
+
+const sanitizedPersistenceWarning = "Failed to restore original command in tool history"
 
 const makeCtx = (
   dir = "/tmp/project",
@@ -38,6 +41,8 @@ describe("SandboxPlugin", () => {
     mockCleanupAfterCommand.mockClear()
     delete process.env.OPENCODE_DISABLE_SANDBOX
     delete process.env.OPENCODE_SANDBOX_CONFIG
+    delete process.env.OPENCODE_SERVER_PASSWORD
+    delete process.env.OPENCODE_SERVER_USERNAME
   })
 
   test("exports the server plugin target", () => {
@@ -359,10 +364,12 @@ describe("SandboxPlugin", () => {
     if (process.platform === "win32") return
 
     const update = mock(() => Promise.resolve())
+    const patch = mock(() => Promise.resolve({ data: undefined, error: undefined }))
     const hooks = await SandboxPlugin(
       makeCtx("/tmp/project", "/tmp/project", {
         app: { log: mock(() => Promise.resolve()) },
         part: { update },
+        _client: { patch },
       }),
     )
 
@@ -393,7 +400,519 @@ describe("SandboxPlugin", () => {
       partID: "p1",
       part,
     })
+    expect(patch).not.toHaveBeenCalled()
     expect(mockCleanupAfterCommand).not.toHaveBeenCalled()
+  })
+
+  test("logs a sanitized warning for a public client error result", async () => {
+    if (process.platform === "win32") return
+
+    const log = mock(() => Promise.resolve())
+    const update = mock(() =>
+      Promise.resolve({
+        data: undefined,
+        error: { message: "private transport diagnostic", credential: "fixture-credential" },
+      }),
+    )
+    const patch = mock(() => Promise.resolve({ data: undefined, error: undefined }))
+    const hooks = await SandboxPlugin(
+      makeCtx("/tmp/project", "/tmp/project", {
+        app: { log },
+        part: { update },
+        _client: { patch },
+      }),
+    )
+    const beforeOutput = { args: { command: "git status" } }
+    await hooks["tool.execute.before"]?.(
+      { tool: "bash", sessionID: "s1", callID: "c1" },
+      beforeOutput,
+    )
+    log.mockClear()
+
+    await hooks.event?.({
+      event: {
+        type: "message.part.updated",
+        properties: {
+          part: {
+            id: "p1",
+            sessionID: "s1",
+            messageID: "m1",
+            type: "tool",
+            tool: "bash",
+            callID: "c1",
+            state: { status: "running", input: { command: beforeOutput.args.command } },
+          },
+        },
+      } as any,
+    })
+
+    expect(update).toHaveBeenCalledTimes(1)
+    expect(patch).not.toHaveBeenCalled()
+    expect(log).toHaveBeenCalledTimes(1)
+    expect(log).toHaveBeenCalledWith({
+      body: {
+        service: "opencode-sandbox",
+        level: "warn",
+        message: sanitizedPersistenceWarning,
+      },
+    })
+    const logged = JSON.stringify(log.mock.calls)
+    expect(logged.includes("private transport diagnostic")).toBe(false)
+    expect(logged.includes("fixture-credential")).toBe(false)
+  })
+
+  test("logs a sanitized warning for a thrown public client error", async () => {
+    if (process.platform === "win32") return
+
+    const log = mock(() => Promise.resolve())
+    const update = mock(() =>
+      Promise.reject(
+        new Error("public transport failed for https://unsafe.example/?token=fixture-secret"),
+      ),
+    )
+    const patch = mock(() => Promise.resolve({ data: undefined, error: undefined }))
+    const hooks = await SandboxPlugin(
+      makeCtx("/tmp/project", "/tmp/project", {
+        app: { log },
+        part: { update },
+        _client: { patch },
+      }),
+    )
+    const beforeOutput = { args: { command: "git status" } }
+    await hooks["tool.execute.before"]?.(
+      { tool: "bash", sessionID: "s1", callID: "c1" },
+      beforeOutput,
+    )
+    log.mockClear()
+
+    await hooks.event?.({
+      event: {
+        type: "message.part.updated",
+        properties: {
+          part: {
+            id: "p1",
+            sessionID: "s1",
+            messageID: "m1",
+            type: "tool",
+            tool: "bash",
+            callID: "c1",
+            state: { status: "running", input: { command: beforeOutput.args.command } },
+          },
+        },
+      } as any,
+    })
+
+    expect(update).toHaveBeenCalledTimes(1)
+    expect(patch).not.toHaveBeenCalled()
+    expect(log).toHaveBeenCalledWith({
+      body: {
+        service: "opencode-sandbox",
+        level: "warn",
+        message: sanitizedPersistenceWarning,
+      },
+    })
+    const logged = JSON.stringify(log.mock.calls)
+    expect(logged.includes("https://unsafe.example/")).toBe(false)
+    expect(logged.includes("fixture-secret")).toBe(false)
+  })
+
+  test("uses the legacy client transport before the direct fetch fallback", async () => {
+    if (process.platform === "win32") return
+
+    const originalFetch = globalThis.fetch
+    const fetchMock = mock(() => Promise.reject(new Error("global fetch must not be called")))
+    globalThis.fetch = fetchMock as typeof fetch
+
+    try {
+      const directory = "/tmp/project with space"
+      const requests: Array<{
+        method: string
+        url: string
+        contentType: string | null
+        directoryHeader: string | null
+        body: string
+      }> = []
+      const legacyFetch = mock(async (request: Request) => {
+        requests.push({
+          method: request.method,
+          url: request.url,
+          contentType: request.headers.get("content-type"),
+          directoryHeader: request.headers.get("x-opencode-directory"),
+          body: await request.text(),
+        })
+        return new Response(null, { status: 204 })
+      })
+      const client = createOpencodeClient({
+        baseUrl: "http://localhost:4096",
+        directory,
+        fetch: legacyFetch as typeof fetch,
+      }) as any
+      client.app = { ...client.app, log: mock(() => Promise.resolve()) }
+      const hooks = await SandboxPlugin(makeCtx(directory, directory, client))
+      const beforeOutput = { args: { command: "git status" } }
+      await hooks["tool.execute.before"]?.(
+        { tool: "bash", sessionID: "session/one", callID: "c1" },
+        beforeOutput,
+      )
+
+      const part = {
+        id: "part?one",
+        sessionID: "session/one",
+        messageID: "message one",
+        type: "tool",
+        tool: "bash",
+        callID: "c1",
+        state: { status: "running", input: { command: beforeOutput.args.command } },
+      }
+      await hooks.event?.({
+        event: { type: "message.part.updated", properties: { part } } as any,
+      })
+
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(legacyFetch).toHaveBeenCalledTimes(1)
+      const persisted = requests[0]
+      const url = new URL(persisted?.url ?? "http://localhost")
+      expect(url.pathname).toBe("/session/session%2Fone/message/message%20one/part/part%3Fone")
+      expect(url.searchParams.get("directory")).toBe(directory)
+      expect(persisted?.method).toBe("PATCH")
+      expect(persisted?.contentType).toBe("application/json")
+      expect(persisted?.directoryHeader).toBe(encodeURIComponent(directory))
+      expect(JSON.parse(persisted?.body ?? "{}")).toEqual(part)
+      expect(part.state.input.command).toBe("git status")
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  test("logs a sanitized warning for a legacy client transport error result", async () => {
+    if (process.platform === "win32") return
+
+    const directory = "/tmp/project"
+    const log = mock(() => Promise.resolve())
+    const legacyFetch = mock(() =>
+      Promise.resolve(
+        new Response("private transport diagnostic fixture-credential", { status: 503 }),
+      ),
+    )
+    const client = createOpencodeClient({
+      baseUrl: "http://localhost:4096",
+      directory,
+      fetch: legacyFetch as typeof fetch,
+    }) as any
+    client.app = { ...client.app, log }
+    const hooks = await SandboxPlugin(makeCtx(directory, directory, client))
+    const beforeOutput = { args: { command: "git status" } }
+    await hooks["tool.execute.before"]?.(
+      { tool: "bash", sessionID: "s1", callID: "c1" },
+      beforeOutput,
+    )
+    log.mockClear()
+
+    await hooks.event?.({
+      event: {
+        type: "message.part.updated",
+        properties: {
+          part: {
+            id: "p1",
+            sessionID: "s1",
+            messageID: "m1",
+            type: "tool",
+            tool: "bash",
+            callID: "c1",
+            state: { status: "running", input: { command: beforeOutput.args.command } },
+          },
+        },
+      } as any,
+    })
+
+    expect(log).toHaveBeenCalledTimes(1)
+    expect(log).toHaveBeenCalledWith({
+      body: {
+        service: "opencode-sandbox",
+        level: "warn",
+        message: sanitizedPersistenceWarning,
+      },
+    })
+    const logged = JSON.stringify(log.mock.calls)
+    expect(logged.includes("private transport diagnostic")).toBe(false)
+    expect(logged.includes("fixture-credential")).toBe(false)
+  })
+
+  test("logs a sanitized warning for a thrown legacy client transport error", async () => {
+    if (process.platform === "win32") return
+
+    const directory = "/tmp/project"
+    const log = mock(() => Promise.resolve())
+    const legacyFetch = mock(() =>
+      Promise.reject(
+        new Error("legacy transport failed for https://unsafe.example/?token=fixture-secret"),
+      ),
+    )
+    const client = createOpencodeClient({
+      baseUrl: "http://localhost:4096",
+      directory,
+      fetch: legacyFetch as typeof fetch,
+    }) as any
+    client.app = { ...client.app, log }
+    const hooks = await SandboxPlugin(makeCtx(directory, directory, client))
+    const beforeOutput = { args: { command: "git status" } }
+    await hooks["tool.execute.before"]?.(
+      { tool: "bash", sessionID: "s1", callID: "c1" },
+      beforeOutput,
+    )
+    log.mockClear()
+
+    await hooks.event?.({
+      event: {
+        type: "message.part.updated",
+        properties: {
+          part: {
+            id: "p1",
+            sessionID: "s1",
+            messageID: "m1",
+            type: "tool",
+            tool: "bash",
+            callID: "c1",
+            state: { status: "running", input: { command: beforeOutput.args.command } },
+          },
+        },
+      } as any,
+    })
+
+    expect(log).toHaveBeenCalledWith({
+      body: {
+        service: "opencode-sandbox",
+        level: "warn",
+        message: sanitizedPersistenceWarning,
+      },
+    })
+    const logged = JSON.stringify(log.mock.calls)
+    expect(logged.includes("https://unsafe.example/")).toBe(false)
+    expect(logged.includes("fixture-secret")).toBe(false)
+  })
+
+  test("falls back to the server API when the client has no SDK part transport", async () => {
+    if (process.platform === "win32") return
+
+    const originalFetch = globalThis.fetch
+    const fetchMock = mock(() => Promise.resolve(new Response(null, { status: 204 })))
+    globalThis.fetch = fetchMock as typeof fetch
+
+    try {
+      const directory = "/tmp/project with space"
+      const hooks = await SandboxPlugin(makeCtx(directory))
+      const beforeOutput = { args: { command: "git status" } }
+      await hooks["tool.execute.before"]?.(
+        { tool: "bash", sessionID: "session/one", callID: "c1" },
+        beforeOutput,
+      )
+
+      const part = {
+        id: "part?one",
+        sessionID: "session/one",
+        messageID: "message one",
+        type: "tool",
+        tool: "bash",
+        callID: "c1",
+        state: { status: "running", input: { command: beforeOutput.args.command } },
+      }
+      await hooks.event?.({
+        event: { type: "message.part.updated", properties: { part } } as any,
+      })
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      const [request, init] = fetchMock.mock.calls[0] ?? []
+      const url = new URL(String(request))
+      expect(url.pathname).toBe("/session/session%2Fone/message/message%20one/part/part%3Fone")
+      expect(url.searchParams.get("directory")).toBe(directory)
+      expect(init?.method).toBe("PATCH")
+      expect(new Headers(init?.headers).get("content-type")).toBe("application/json")
+      const patchedPart = JSON.parse(String(init?.body))
+      expect(patchedPart.state.input.command === "git status").toBe(true)
+      expect(part.state.input.command).toBe("git status")
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  test("logs a sanitized warning when the server API rejects the part update", async () => {
+    if (process.platform === "win32") return
+
+    const originalFetch = globalThis.fetch
+    const fetchMock = mock(() =>
+      Promise.resolve(new Response("internal diagnostic details", { status: 503 })),
+    )
+    globalThis.fetch = fetchMock as typeof fetch
+
+    try {
+      process.env.OPENCODE_SERVER_PASSWORD = "fixture-password"
+      process.env.OPENCODE_SERVER_USERNAME = "fixture-user"
+      const log = mock(() => Promise.resolve())
+      const hooks = await SandboxPlugin(makeCtx("/tmp/project", "/tmp/project", { app: { log } }))
+      const beforeOutput = { args: { command: "git status" } }
+      await hooks["tool.execute.before"]?.(
+        { tool: "bash", sessionID: "s1", callID: "c1" },
+        beforeOutput,
+      )
+
+      await hooks.event?.({
+        event: {
+          type: "message.part.updated",
+          properties: {
+            part: {
+              id: "p1",
+              sessionID: "s1",
+              messageID: "m1",
+              type: "tool",
+              tool: "bash",
+              callID: "c1",
+              state: { status: "running", input: { command: beforeOutput.args.command } },
+            },
+          },
+        } as any,
+      })
+
+      expect(log).toHaveBeenCalledWith({
+        body: {
+          service: "opencode-sandbox",
+          level: "warn",
+          message: sanitizedPersistenceWarning,
+        },
+      })
+      const logged = JSON.stringify(log.mock.calls)
+      expect(logged.includes("internal diagnostic details")).toBe(false)
+      expect(logged.includes("fixture-password")).toBe(false)
+      expect(logged.includes("fixture-user")).toBe(false)
+    } finally {
+      delete process.env.OPENCODE_SERVER_PASSWORD
+      delete process.env.OPENCODE_SERVER_USERNAME
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  test("logs a sanitized warning when the direct server fetch throws", async () => {
+    if (process.platform === "win32") return
+
+    const originalFetch = globalThis.fetch
+    const fetchMock = mock(() =>
+      Promise.reject(
+        new Error("direct transport failed for https://unsafe.example/?token=fixture-secret"),
+      ),
+    )
+    globalThis.fetch = fetchMock as typeof fetch
+
+    try {
+      const log = mock(() => Promise.resolve())
+      const hooks = await SandboxPlugin(makeCtx("/tmp/project", "/tmp/project", { app: { log } }))
+      const beforeOutput = { args: { command: "git status" } }
+      await hooks["tool.execute.before"]?.(
+        { tool: "bash", sessionID: "s1", callID: "c1" },
+        beforeOutput,
+      )
+      log.mockClear()
+
+      await hooks.event?.({
+        event: {
+          type: "message.part.updated",
+          properties: {
+            part: {
+              id: "p1",
+              sessionID: "s1",
+              messageID: "m1",
+              type: "tool",
+              tool: "bash",
+              callID: "c1",
+              state: { status: "running", input: { command: beforeOutput.args.command } },
+            },
+          },
+        } as any,
+      })
+
+      expect(log).toHaveBeenCalledWith({
+        body: {
+          service: "opencode-sandbox",
+          level: "warn",
+          message: sanitizedPersistenceWarning,
+        },
+      })
+      const logged = JSON.stringify(log.mock.calls)
+      expect(logged.includes("https://unsafe.example/")).toBe(false)
+      expect(logged.includes("fixture-secret")).toBe(false)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  test("matches OpenCode Basic auth semantics for empty credentials", async () => {
+    if (process.platform === "win32") return
+
+    const originalFetch = globalThis.fetch
+    const fetchMock = mock(() => Promise.resolve(new Response(null, { status: 204 })))
+    globalThis.fetch = fetchMock as typeof fetch
+
+    try {
+      const cases = [
+        { password: undefined, username: undefined, expectedUsername: undefined },
+        { password: "", username: "fixture-user", expectedUsername: undefined },
+        { password: "fixture-password", username: undefined, expectedUsername: "opencode" },
+        { password: "fixture-password", username: "", expectedUsername: "" },
+        {
+          password: "fixture-password",
+          username: "fixture-user",
+          expectedUsername: "fixture-user",
+        },
+      ]
+
+      for (const { password, username, expectedUsername } of cases) {
+        fetchMock.mockClear()
+        if (password === undefined) delete process.env.OPENCODE_SERVER_PASSWORD
+        else process.env.OPENCODE_SERVER_PASSWORD = password
+        if (username === undefined) delete process.env.OPENCODE_SERVER_USERNAME
+        else process.env.OPENCODE_SERVER_USERNAME = username
+
+        const hooks = await SandboxPlugin(makeCtx())
+        const beforeOutput = { args: { command: "git status" } }
+        await hooks["tool.execute.before"]?.(
+          { tool: "bash", sessionID: "s1", callID: "c1" },
+          beforeOutput,
+        )
+        await hooks.event?.({
+          event: {
+            type: "message.part.updated",
+            properties: {
+              part: {
+                id: "p1",
+                sessionID: "s1",
+                messageID: "m1",
+                type: "tool",
+                tool: "bash",
+                callID: "c1",
+                state: { status: "running", input: { command: beforeOutput.args.command } },
+              },
+            },
+          } as any,
+        })
+
+        expect(fetchMock).toHaveBeenCalledTimes(1)
+        const [, init] = fetchMock.mock.calls[0] ?? []
+        const authorization = new Headers(init?.headers).get("authorization")
+        if (expectedUsername === undefined) {
+          expect(authorization).toBeNull()
+          continue
+        }
+
+        const decoded = Buffer.from(
+          authorization?.slice("Basic ".length) ?? "",
+          "base64",
+        ).toString()
+        expect(authorization?.startsWith("Basic ")).toBe(true)
+        expect(decoded === `${expectedUsername}:${password}`).toBe(true)
+      }
+    } finally {
+      delete process.env.OPENCODE_SERVER_PASSWORD
+      delete process.env.OPENCODE_SERVER_USERNAME
+      globalThis.fetch = originalFetch
+    }
   })
 
   test("restores the persisted command after tool.execute.after runs", async () => {
@@ -430,56 +949,130 @@ describe("SandboxPlugin", () => {
     expect(mockCleanupAfterCommand).toHaveBeenCalledTimes(1)
   })
 
-  test("restores a completed part persisted after its running update", async () => {
+  test("cleans a completed command before its restored input finishes persisting", async () => {
     if (process.platform === "win32") return
 
-    let persistedCommand: unknown
-    const update = mock(({ part }: { part: { state?: { input?: { command?: unknown } } } }) => {
-      persistedCommand = part.state?.input?.command
-      return Promise.resolve()
+    let resolvePersistence!: () => void
+    const persistence = new Promise<void>((resolve) => {
+      resolvePersistence = resolve
     })
+    const update = mock(() => persistence)
     const hooks = await SandboxPlugin(
       makeCtx("/tmp/project", "/tmp/project", {
         app: { log: mock(() => Promise.resolve()) },
         part: { update },
       }),
     )
-
     const input = { tool: "bash", sessionID: "s1", callID: "c1" }
     const output = { args: { command: "git status" } }
     await hooks["tool.execute.before"]?.(input, output)
-    const wrappedCommand = output.args.command
 
-    const dispatchPersistedPart = async (status: "running" | "completed") => {
-      const part = {
-        id: "p1",
-        sessionID: "s1",
-        messageID: "m1",
-        type: "tool",
-        tool: "bash",
-        callID: "c1",
-        state: { status, input: { command: wrappedCommand } },
-      }
-      persistedCommand = part.state.input.command
-      await hooks.event?.({
-        event: { type: "message.part.updated", properties: { part } } as any,
-      })
+    const part = {
+      id: "p1",
+      sessionID: "s1",
+      messageID: "m1",
+      type: "tool",
+      tool: "bash",
+      callID: "c1",
+      state: { status: "completed", input: { command: output.args.command } },
     }
+    const terminalEvent = hooks.event?.({
+      event: { type: "message.part.updated", properties: { part } } as any,
+    })
 
-    await dispatchPersistedPart("running")
-    await hooks["tool.execute.after"]?.({ ...input, args: output.args }, {})
-    await dispatchPersistedPart("completed")
-
-    expect(persistedCommand).toBe("git status")
-    expect(update).toHaveBeenCalledTimes(2)
+    try {
+      expect(part.state.input.command).toBe("git status")
+      expect(update).toHaveBeenCalledTimes(1)
+      expect(mockCleanupAfterCommand).toHaveBeenCalledTimes(1)
+    } finally {
+      resolvePersistence()
+      await terminalEvent
+    }
+    await hooks.event?.({
+      event: { type: "message.part.updated", properties: { part: structuredClone(part) } } as any,
+    })
     expect(mockCleanupAfterCommand).toHaveBeenCalledTimes(1)
   })
 
-  test("does not re-persist an already restored tool part", async () => {
+  test("restores legacy client running and completed snapshots without persistence loops", async () => {
     if (process.platform === "win32") return
 
-    const update = mock(() => Promise.resolve())
-    const hooks = await SandboxPlugin(
+    const originalFetch = globalThis.fetch
+    const persisted = new Map<string, any>()
+    const fetchMock = mock(() => Promise.reject(new Error("global fetch must not be called")))
+    let hooks: any
+    const legacyFetch = mock(async (request: Request) => {
+      const part = JSON.parse(await request.text())
+      persisted.set(part.callID, structuredClone(part))
+      await hooks.event?.({
+        event: {
+          type: "message.part.updated",
+          properties: { part: structuredClone(part) },
+        } as any,
+      })
+      return new Response(null, { status: 204 })
+    })
+    globalThis.fetch = fetchMock as typeof fetch
+
+    try {
+      const client = createOpencodeClient({
+        baseUrl: "http://localhost:4096",
+        directory: "/tmp/project",
+        fetch: legacyFetch as typeof fetch,
+      }) as any
+      client.app = { ...client.app, log: mock(() => Promise.resolve()) }
+      hooks = await SandboxPlugin(makeCtx("/tmp/project", "/tmp/project", client))
+      const input = { tool: "bash", sessionID: "s1", callID: "c1" }
+      const output = { args: { command: "git status" } }
+      await hooks["tool.execute.before"]?.(input, output)
+      const wrappedCommand = output.args.command
+
+      const dispatchPersistedPart = async (status: "running" | "completed") => {
+        const part = {
+          id: "p1",
+          sessionID: "s1",
+          messageID: "m1",
+          type: "tool",
+          tool: "bash",
+          callID: "c1",
+          state: { status, input: { command: wrappedCommand } },
+        }
+        persisted.set(part.callID, structuredClone(part))
+        await hooks.event?.({
+          event: { type: "message.part.updated", properties: { part } } as any,
+        })
+      }
+
+      await dispatchPersistedPart("running")
+      expect(persisted.get("c1")?.state.status).toBe("running")
+      expect(persisted.get("c1")?.state.input.command === "git status").toBe(true)
+
+      await hooks["tool.execute.after"]?.({ ...input, args: output.args }, {})
+      await dispatchPersistedPart("completed")
+
+      expect(legacyFetch).toHaveBeenCalledTimes(2)
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(persisted.get("c1")?.state.status).toBe("completed")
+      expect(persisted.get("c1")?.state.input.command === "git status").toBe(true)
+      expect(mockCleanupAfterCommand).toHaveBeenCalledTimes(1)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  test("does not re-persist an equal part update echoed by the client", async () => {
+    if (process.platform === "win32") return
+
+    let hooks: any
+    const update = mock(async ({ part }: { part: any }) => {
+      await hooks.event?.({
+        event: {
+          type: "message.part.updated",
+          properties: { part: structuredClone(part) },
+        } as any,
+      })
+    })
+    hooks = await SandboxPlugin(
       makeCtx("/tmp/project", "/tmp/project", {
         app: { log: mock(() => Promise.resolve()) },
         part: { update },
@@ -503,9 +1096,97 @@ describe("SandboxPlugin", () => {
     }
 
     await hooks.event?.({ event: { type: "message.part.updated", properties: { part } } as any })
-    await hooks.event?.({ event: { type: "message.part.updated", properties: { part } } as any })
 
     expect(update).toHaveBeenCalledTimes(1)
     expect(part.state.input.command).toBe("echo hello")
+  })
+
+  test("isolates concurrent legacy fallback updates and cleans terminal calls exactly once", async () => {
+    if (process.platform === "win32") return
+
+    const originalFetch = globalThis.fetch
+    const persisted = new Map<string, any>()
+    const fetchMock = mock((_request: RequestInfo | URL, init?: RequestInit) => {
+      const part = JSON.parse(String(init?.body))
+      persisted.set(part.callID, structuredClone(part))
+      return Promise.resolve(new Response(null, { status: 204 }))
+    })
+    globalThis.fetch = fetchMock as typeof fetch
+
+    try {
+      const hooks = await SandboxPlugin(makeCtx())
+      const commands = new Map([
+        ["c1", "echo first"],
+        ["c2", "echo second"],
+      ])
+      const wrapped = new Map<string, string>()
+
+      for (const [callID, command] of commands) {
+        const output = { args: { command } }
+        await hooks["tool.execute.before"]?.({ tool: "bash", sessionID: "s1", callID }, output)
+        wrapped.set(callID, output.args.command)
+      }
+
+      const dispatchPersistedPart = async (
+        callID: string,
+        status: "running" | "completed" | "error",
+      ) => {
+        const part = {
+          id: `p-${callID}`,
+          sessionID: "s1",
+          messageID: `m-${callID}`,
+          type: "tool",
+          tool: "bash",
+          callID,
+          state: { status, input: { command: wrapped.get(callID) } },
+        }
+        persisted.set(callID, structuredClone(part))
+        await hooks.event?.({
+          event: { type: "message.part.updated", properties: { part } } as any,
+        })
+        return part
+      }
+
+      await dispatchPersistedPart("c1", "running")
+      await dispatchPersistedPart("c2", "running")
+      expect(persisted.get("c1")?.state.input.command === commands.get("c1")).toBe(true)
+      expect(persisted.get("c2")?.state.input.command === commands.get("c2")).toBe(true)
+
+      await hooks["tool.execute.after"]?.(
+        { tool: "bash", sessionID: "s1", callID: "c1", args: { command: wrapped.get("c1") } },
+        {},
+      )
+      const errored = await dispatchPersistedPart("c2", "error")
+      await hooks.event?.({
+        event: {
+          type: "message.part.updated",
+          properties: { part: structuredClone(errored) },
+        } as any,
+      })
+      await hooks["tool.execute.after"]?.(
+        { tool: "bash", sessionID: "s1", callID: "c2", args: { command: wrapped.get("c2") } },
+        {},
+      )
+
+      const completed = await dispatchPersistedPart("c1", "completed")
+      await hooks.event?.({
+        event: {
+          type: "message.part.updated",
+          properties: { part: structuredClone(completed) },
+        } as any,
+      })
+      await hooks.event?.({
+        event: { type: "session.idle", properties: { sessionID: "s1" } } as any,
+      })
+
+      expect(fetchMock).toHaveBeenCalledTimes(4)
+      expect(persisted.get("c1")?.state.status).toBe("completed")
+      expect(persisted.get("c2")?.state.status).toBe("error")
+      expect(persisted.get("c1")?.state.input.command === commands.get("c1")).toBe(true)
+      expect(persisted.get("c2")?.state.input.command === commands.get("c2")).toBe(true)
+      expect(mockCleanupAfterCommand).toHaveBeenCalledTimes(2)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
   })
 })

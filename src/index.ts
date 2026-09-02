@@ -4,6 +4,8 @@ import { loadConfig, resolveConfig } from "./config"
 
 export type { SandboxPluginConfig } from "./config"
 
+const PERSISTENCE_WARNING = "Failed to restore original command in tool history"
+
 function isSandboxWrappedCommand(command: string): boolean {
   const trimmed = command.trim()
   const linuxWrapper =
@@ -14,7 +16,7 @@ function isSandboxWrappedCommand(command: string): boolean {
   return linuxWrapper || macosWrapper
 }
 
-export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => {
+export const SandboxPlugin: Plugin = async ({ client, directory, worktree, serverUrl }) => {
   const log = (level: "debug" | "warn" | "error", message: string) =>
     client.app.log({ body: { service: "opencode-sandbox", level, message } }).catch(() => undefined)
 
@@ -65,7 +67,7 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => 
     state?: { input?: { command?: unknown }; status?: string }
   }
 
-  type ClientWithPartUpdate = typeof client & {
+  type ClientWithPersistence = {
     part?: {
       update?: (input: {
         sessionID: string
@@ -74,7 +76,19 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => 
         part: MutableToolPart
       }) => Promise<unknown>
     }
+    _client?: {
+      patch?: (input: {
+        url: string
+        path: { sessionID: string; messageID: string; partID: string }
+        query: { directory: string }
+        body: MutableToolPart
+        headers: { "Content-Type": string }
+      }) => Promise<unknown>
+    }
   }
+
+  const hasDefinedError = (result: unknown): result is { error: unknown } =>
+    typeof result === "object" && result !== null && "error" in result && result.error !== undefined
 
   const inFlight = new Map<string, { command: string; sessionID: string; cleaned: boolean }>()
 
@@ -98,21 +112,64 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => 
       return
     }
 
-    const partClient = (client as ClientWithPartUpdate).part
-    if (typeof partClient?.update !== "function") return
+    const persistenceClient = client as unknown as ClientWithPersistence
+    const partClient = persistenceClient.part
+    const internalClient = persistenceClient._client
 
     try {
-      await partClient.update({
-        sessionID: part.sessionID,
-        messageID: part.messageID,
-        partID: part.id,
-        part,
-      })
-    } catch (err) {
-      void log(
-        "warn",
-        `Failed to restore original command in tool history: ${err instanceof Error ? err.message : String(err)}`,
-      )
+      if (typeof partClient?.update === "function") {
+        const result = await partClient.update({
+          sessionID: part.sessionID,
+          messageID: part.messageID,
+          partID: part.id,
+          part,
+        })
+        if (hasDefinedError(result)) {
+          throw new Error("OpenCode public client failed to update tool history")
+        }
+      } else if (typeof internalClient?.patch === "function") {
+        let result: unknown
+        try {
+          result = await internalClient.patch({
+            url: "/session/{sessionID}/message/{messageID}/part/{partID}",
+            path: {
+              sessionID: part.sessionID,
+              messageID: part.messageID,
+              partID: part.id,
+            },
+            query: { directory },
+            body: part,
+            headers: { "Content-Type": "application/json" },
+          })
+        } catch {
+          throw new Error("OpenCode client transport failed to update tool history")
+        }
+        if (hasDefinedError(result)) {
+          throw new Error("OpenCode client transport failed to update tool history")
+        }
+      } else {
+        const url = new URL(
+          `/session/${encodeURIComponent(part.sessionID)}/message/${encodeURIComponent(part.messageID)}/part/${encodeURIComponent(part.id)}`,
+          serverUrl,
+        )
+        url.searchParams.set("directory", directory)
+        const headers: Record<string, string> = { "content-type": "application/json" }
+        const password = process.env.OPENCODE_SERVER_PASSWORD
+        if (password) {
+          const username = process.env.OPENCODE_SERVER_USERNAME ?? "opencode"
+          headers.authorization = `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`
+        }
+        const response = await fetch(url, {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify(part),
+        })
+        if (!response.ok) {
+          throw new Error(`OpenCode server returned HTTP ${response.status}`)
+        }
+      }
+    } catch {
+      void log("warn", PERSISTENCE_WARNING)
     }
   }
 
@@ -199,9 +256,13 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => 
         // On interrupt OpenCode marks the in-flight tool part as
         // status "error" / metadata.interrupted; normal completion lands here too.
         if (part.type !== "tool") return
-        await scrubToolPartInput(part)
-        if (part.state.status !== "error" && part.state.status !== "completed") return
-        finishCommand(part.callID)
+        const persistence = scrubToolPartInput(part)
+        if (part.state.status === "error" || part.state.status === "completed") {
+          finishCommand(part.callID)
+          await persistence
+          return
+        }
+        await persistence
         return
       }
 
