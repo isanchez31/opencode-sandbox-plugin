@@ -76,10 +76,7 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => 
     }
   }
 
-  const inFlight = new Map<
-    string,
-    { command: string; sessionID: string; scrubbedPartIDs: Set<string>; cleaned: boolean }
-  >()
+  const inFlight = new Map<string, { command: string; sessionID: string; cleaned: boolean }>()
 
   const scrubToolPartInput = async (part: MutableToolPart) => {
     const pending = inFlight.get(part.callID)
@@ -96,12 +93,10 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => 
     if (
       typeof part.id !== "string" ||
       typeof part.sessionID !== "string" ||
-      typeof part.messageID !== "string" ||
-      pending.scrubbedPartIDs.has(part.id)
+      typeof part.messageID !== "string"
     ) {
       return
     }
-    pending.scrubbedPartIDs.add(part.id)
 
     const partClient = (client as ClientWithPartUpdate).part
     if (typeof partClient?.update !== "function") return
@@ -165,7 +160,6 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree }) => 
         inFlight.set(input.callID, {
           command,
           sessionID: input.sessionID,
-          scrubbedPartIDs: new Set(),
           cleaned: false,
         })
       } catch (err) {

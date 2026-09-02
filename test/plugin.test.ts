@@ -430,7 +430,52 @@ describe("SandboxPlugin", () => {
     expect(mockCleanupAfterCommand).toHaveBeenCalledTimes(1)
   })
 
-  test("restores persisted tool part only once per part", async () => {
+  test("restores a completed part persisted after its running update", async () => {
+    if (process.platform === "win32") return
+
+    let persistedCommand: unknown
+    const update = mock(({ part }: { part: { state?: { input?: { command?: unknown } } } }) => {
+      persistedCommand = part.state?.input?.command
+      return Promise.resolve()
+    })
+    const hooks = await SandboxPlugin(
+      makeCtx("/tmp/project", "/tmp/project", {
+        app: { log: mock(() => Promise.resolve()) },
+        part: { update },
+      }),
+    )
+
+    const input = { tool: "bash", sessionID: "s1", callID: "c1" }
+    const output = { args: { command: "git status" } }
+    await hooks["tool.execute.before"]?.(input, output)
+    const wrappedCommand = output.args.command
+
+    const dispatchPersistedPart = async (status: "running" | "completed") => {
+      const part = {
+        id: "p1",
+        sessionID: "s1",
+        messageID: "m1",
+        type: "tool",
+        tool: "bash",
+        callID: "c1",
+        state: { status, input: { command: wrappedCommand } },
+      }
+      persistedCommand = part.state.input.command
+      await hooks.event?.({
+        event: { type: "message.part.updated", properties: { part } } as any,
+      })
+    }
+
+    await dispatchPersistedPart("running")
+    await hooks["tool.execute.after"]?.({ ...input, args: output.args }, {})
+    await dispatchPersistedPart("completed")
+
+    expect(persistedCommand).toBe("git status")
+    expect(update).toHaveBeenCalledTimes(2)
+    expect(mockCleanupAfterCommand).toHaveBeenCalledTimes(1)
+  })
+
+  test("does not re-persist an already restored tool part", async () => {
     if (process.platform === "win32") return
 
     const update = mock(() => Promise.resolve())
@@ -458,7 +503,6 @@ describe("SandboxPlugin", () => {
     }
 
     await hooks.event?.({ event: { type: "message.part.updated", properties: { part } } as any })
-    part.state.input.command = beforeOutput.args.command
     await hooks.event?.({ event: { type: "message.part.updated", properties: { part } } as any })
 
     expect(update).toHaveBeenCalledTimes(1)
