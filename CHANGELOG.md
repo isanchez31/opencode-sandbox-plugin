@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3](https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.5.2...v0.5.3) (2026-09-04)
+
+
+### Fixed
+
+* persist commands through legacy client transport ([fd18d93](https://github.com/isanchez31/opencode-sandbox-plugin/commit/fd18d93cf524f4446579ac0cb7cf34cd4d634566))
+* preserve command state through final part update ([7075496](https://github.com/isanchez31/opencode-sandbox-plugin/commit/70754962bf2098c157b86df469556f258d0b3844))
+* preserve command state through final update ([6c787aa](https://github.com/isanchez31/opencode-sandbox-plugin/commit/6c787aa07581bed13067d99c3ad9b5ccb903b8db))
+* repair repeated terminal part persistence ([54b3527](https://github.com/isanchez31/opencode-sandbox-plugin/commit/54b3527f57193e15b57ec7d0d47d1b7b05abf950))
+
 ## [0.5.2](https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.5.1...v0.5.2) (2026-08-28)
 
 
