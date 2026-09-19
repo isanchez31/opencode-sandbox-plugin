@@ -5,6 +5,7 @@ import type { SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime"
 
 export interface SandboxPluginConfig {
   disabled?: boolean
+  mode?: "permissive" | "enforce"
   filesystem?: {
     denyRead?: string[]
     allowRead?: string[]

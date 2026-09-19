@@ -168,10 +168,12 @@ describe("loadConfig", () => {
   test("loads config from OPENCODE_SANDBOX_CONFIG env var", async () => {
     process.env.OPENCODE_SANDBOX_CONFIG = JSON.stringify({
       disabled: false,
+      mode: "enforce",
       filesystem: { denyRead: ["/secret"], allowRead: ["/secret.pub"] },
     })
     const config = await loadConfig(PROJECT_DIR)
     expect(config.disabled).toBe(false)
+    expect(config.mode).toBe("enforce")
     expect(config.filesystem?.denyRead).toEqual(["/secret"])
     expect(config.filesystem?.allowRead).toEqual(["/secret.pub"])
   })

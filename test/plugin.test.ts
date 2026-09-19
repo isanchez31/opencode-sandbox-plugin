@@ -97,45 +97,39 @@ describe("SandboxPlugin", () => {
     expect(output.args.command).toBe("srt-wrapped: ls -la")
   })
 
-  test("does not wrap commands already wrapped by sandbox-runtime", async () => {
+  test("wraps user commands that resemble sandbox-runtime wrappers", async () => {
     if (process.platform === "win32") return
 
     const hooks = await SandboxPlugin(makeCtx())
-    const alreadyWrapped =
+    const wrapperLikeCommand =
       "bwrap --new-session --die-with-parent --setenv SANDBOX_RUNTIME 1 -- /usr/bin/bash -c 'echo hello'"
     const input = { tool: "bash", sessionID: "s1", callID: "c1" }
-    const output = { args: { command: alreadyWrapped } }
+    const output = { args: { command: wrapperLikeCommand } }
 
     await hooks["tool.execute.before"]?.(input, output)
 
-    expect(mockWrapWithSandbox).not.toHaveBeenCalled()
-    expect(output.args.command).toBe(alreadyWrapped)
+    expect(mockWrapWithSandbox).toHaveBeenCalledWith(
+      wrapperLikeCommand,
+      undefined,
+      undefined,
+      undefined,
+      { commandId: "c1", commandText: wrapperLikeCommand },
+    )
+    expect(output.args.command).toBe(`srt-wrapped: ${wrapperLikeCommand}`)
   })
 
-  test("detects sandbox-runtime wrappers without matching ordinary commands", async () => {
+  test("does not wrap the same tool call twice", async () => {
     if (process.platform === "win32") return
 
     const hooks = await SandboxPlugin(makeCtx())
-    const linuxWrapper =
-      "bwrap --new-session --die-with-parent --setenv SANDBOX_RUNTIME 1 -- /usr/bin/bash -c 'echo hello'"
-    const macosWrapper =
-      "env SANDBOX_RUNTIME=1 TMPDIR=/tmp/claude /usr/bin/sandbox-exec -p '(version 1)' /bin/bash -c 'echo hello'"
-    const ordinaryCommand = "echo SANDBOX_RUNTIME=1 bwrap"
-    const outputs = [linuxWrapper, macosWrapper, ordinaryCommand].map((command) => ({
-      args: { command },
-    }))
+    const input = { tool: "bash", sessionID: "s1", callID: "c1" }
+    const output = { args: { command: "echo hello" } }
 
-    for (const [index, output] of outputs.entries()) {
-      await hooks["tool.execute.before"]?.(
-        { tool: "bash", sessionID: "s1", callID: `c${index + 1}` },
-        output,
-      )
-    }
+    await hooks["tool.execute.before"]?.(input, output)
+    await hooks["tool.execute.before"]?.(input, output)
 
-    expect(outputs[0]?.args.command).toBe(linuxWrapper)
-    expect(outputs[1]?.args.command).toBe(macosWrapper)
-    expect(outputs[2]?.args.command).toBe(`srt-wrapped: ${ordinaryCommand}`)
     expect(mockWrapWithSandbox).toHaveBeenCalledTimes(1)
+    expect(output.args.command).toBe("srt-wrapped: echo hello")
   })
 
   test("does not wrap non-bash tools", async () => {
@@ -217,6 +211,41 @@ describe("SandboxPlugin", () => {
     await hooks["tool.execute.before"]?.(input, output)
 
     // Command should remain unchanged (fail open)
+    expect(output.args.command).toBe("echo hello")
+  })
+
+  test("blocks the command in enforce mode when initialization fails", async () => {
+    if (process.platform === "win32") return
+
+    process.env.OPENCODE_SANDBOX_CONFIG = JSON.stringify({ mode: "enforce" })
+    mockInitialize.mockImplementationOnce(() => Promise.reject(new Error("bwrap unavailable")))
+
+    const hooks = await SandboxPlugin(makeCtx())
+    const input = { tool: "bash", sessionID: "s1", callID: "c1" }
+    const output = { args: { command: "echo hello" } }
+
+    await expect(hooks["tool.execute.before"]?.(input, output)).rejects.toThrow(
+      "Sandbox unavailable in enforce mode; command blocked",
+    )
+    expect(mockWrapWithSandbox).not.toHaveBeenCalled()
+    expect(output.args.command).toBe("echo hello")
+  })
+
+  test("blocks the command in enforce mode when wrapping fails", async () => {
+    if (process.platform === "win32") return
+
+    process.env.OPENCODE_SANDBOX_CONFIG = JSON.stringify({ mode: "enforce" })
+    mockWrapWithSandbox.mockImplementationOnce(() => {
+      throw new Error("bwrap unavailable")
+    })
+
+    const hooks = await SandboxPlugin(makeCtx())
+    const input = { tool: "bash", sessionID: "s1", callID: "c1" }
+    const output = { args: { command: "echo hello" } }
+
+    await expect(hooks["tool.execute.before"]?.(input, output)).rejects.toThrow(
+      "Sandbox unavailable in enforce mode; command blocked",
+    )
     expect(output.args.command).toBe("echo hello")
   })
 

@@ -5,28 +5,11 @@ import { loadConfig, resolveConfig } from "./config"
 export type { SandboxPluginConfig } from "./config"
 
 const PERSISTENCE_WARNING = "Failed to restore original command in tool history"
-
-function isSandboxWrappedCommand(command: string): boolean {
-  const trimmed = command.trim()
-  const linuxWrapper =
-    /^(?:[^\s'"]*\/)?bwrap\s/.test(trimmed) &&
-    /\s--setenv\s+SANDBOX_RUNTIME\s+1(?:\s|$)/.test(trimmed)
-  const macosWrapper =
-    /^env\s+SANDBOX_RUNTIME=1\s/.test(trimmed) && /\s\/usr\/bin\/sandbox-exec\s/.test(trimmed)
-  return linuxWrapper || macosWrapper
-}
+const ENFORCEMENT_ERROR = "Sandbox unavailable in enforce mode; command blocked"
 
 export const SandboxPlugin: Plugin = async ({ client, directory, worktree, serverUrl }) => {
   const log = (level: "debug" | "warn" | "error", message: string) =>
     client.app.log({ body: { service: "opencode-sandbox", level, message } }).catch(() => undefined)
-
-  if (process.platform === "win32") {
-    void log(
-      "warn",
-      "Windows sandboxing is not available through OpenCode's command-string hook; commands will run without sandbox",
-    )
-    return {}
-  }
 
   if (
     process.env.OPENCODE_DISABLE_SANDBOX === "1" ||
@@ -37,6 +20,22 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree, serve
 
   const userConfig = await loadConfig(directory)
   if (userConfig.disabled) return {}
+  const enforce = userConfig.mode === "enforce"
+
+  if (process.platform === "win32") {
+    void log(
+      enforce ? "error" : "warn",
+      enforce
+        ? "Windows sandboxing is not available through OpenCode's command-string hook; bash commands will be blocked"
+        : "Windows sandboxing is not available through OpenCode's command-string hook; commands will run without sandbox",
+    )
+    if (!enforce) return {}
+    return {
+      "tool.execute.before": async (input) => {
+        if (input.tool === "bash") throw new Error(ENFORCEMENT_ERROR)
+      },
+    }
+  }
 
   const runtimeConfig = resolveConfig(directory, worktree, userConfig)
 
@@ -53,7 +52,7 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree, serve
       .catch((err) => {
         void log(
           "error",
-          `Failed to initialize; commands will run without sandbox: ${err instanceof Error ? err.message : String(err)}`,
+          `Failed to initialize; ${enforce ? "commands will be blocked" : "commands will run without sandbox"}: ${err instanceof Error ? err.message : String(err)}`,
         )
         return false
       }))
@@ -203,8 +202,11 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree, serve
 
       const command = output.args?.command
       if (typeof command !== "string" || !command) return
-      if (isSandboxWrappedCommand(command)) return
-      if (!(await ensureSandboxReady())) return
+      if (inFlight.has(input.callID)) return
+      if (!(await ensureSandboxReady())) {
+        if (enforce) throw new Error(ENFORCEMENT_ERROR)
+        return
+      }
 
       try {
         output.args.command = await SandboxManager.wrapWithSandbox(
@@ -221,9 +223,10 @@ export const SandboxPlugin: Plugin = async ({ client, directory, worktree, serve
         })
       } catch (err) {
         void log(
-          "warn",
-          `Failed to wrap command; running unsandboxed: ${err instanceof Error ? err.message : String(err)}`,
+          enforce ? "error" : "warn",
+          `Failed to wrap command; ${enforce ? "command blocked" : "running unsandboxed"}: ${err instanceof Error ? err.message : String(err)}`,
         )
+        if (enforce) throw new Error(ENFORCEMENT_ERROR)
       }
     },
 

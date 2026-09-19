@@ -12,7 +12,7 @@ Every `bash` tool invocation is wrapped with OS-level filesystem and network res
 |----------|-----------|
 | **macOS** | `sandbox-exec` (Seatbelt profiles) |
 | **Linux** | `bubblewrap` (namespace isolation) |
-| **Windows** | Not currently supported by OpenCode's command-string hook (commands pass through) |
+| **Windows** | Not currently supported by OpenCode's command-string hook (commands pass through in `permissive` mode and are blocked in `enforce` mode) |
 
 ## Install
 
@@ -149,6 +149,7 @@ If `XDG_CONFIG_HOME` is set, it is used instead of `~/.config`.
 ```json
 // ~/.config/opencode-sandbox/config.json
 {
+  "mode": "enforce",
   "filesystem": {
     "denyRead": ["~/.ssh", "~/.aws/credentials"],
     "allowRead": ["~/.ssh/id_ed25519.pub"],
@@ -225,6 +226,18 @@ Example allowing only the SSH public key to be read:
 OPENCODE_SANDBOX_CONFIG='{"filesystem":{"denyRead":["~/.ssh","~/.gnupg","~/.aws/credentials","~/.azure","~/.config/gcloud","~/.config/gh","~/.kube","~/.docker/config.json","~/.npmrc","~/.netrc","~/.env"],"allowRead":["~/.ssh/id_ed25519.pub"]}}' opencode
 ```
 
+### Enforcement mode
+
+The default mode is `permissive`: if the sandbox cannot initialize or wrap a command, the command runs without sandboxing.
+
+Set `mode` to `enforce` to block `bash` commands whenever sandboxing cannot be applied, including on unsupported platforms:
+
+```json
+{
+  "mode": "enforce"
+}
+```
+
 ### Disable
 
 ```bash
@@ -258,11 +271,11 @@ Sandbox initialization is deferred until the first `bash` command, so the plugin
 
 ### Windows status
 
-`@anthropic-ai/sandbox-runtime` supports Windows through an argv-and-environment API, while OpenCode currently exposes this plugin's `bash` hook as a command string. Until those interfaces can be connected safely, this plugin leaves Windows commands unsandboxed rather than claiming protection it cannot enforce.
+`@anthropic-ai/sandbox-runtime` supports Windows through an argv-and-environment API, while OpenCode currently exposes this plugin's `bash` hook as a command string. Until those interfaces can be connected safely, the plugin leaves Windows commands unsandboxed in `permissive` mode and blocks `bash` commands in `enforce` mode.
 
-### Fail-open design
+### Failure behavior
 
-If anything goes wrong (sandbox init fails, wrapping fails, platform unsupported), commands run normally without sandbox. The plugin never breaks your workflow.
+In the default `permissive` mode, commands run normally if sandbox initialization or wrapping fails. In `enforce` mode, the affected `bash` command is blocked instead.
 
 ## Related
 
