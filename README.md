@@ -104,8 +104,9 @@ $ curl https://registry.npmjs.org
 
 **Filesystem (deny-read)**:
 - `~/.ssh`, `~/.gnupg`
-- `~/.aws/credentials`, `~/.config/gcloud`
-- `~/.npmrc`, `~/.env`
+- `~/.aws/credentials`, `~/.azure`, `~/.config/gcloud`, `~/.config/gh`
+- `~/.kube`, `~/.docker/config.json`
+- `~/.npmrc`, `~/.netrc`, `~/.env`
 
 **Filesystem (allow-read)**:
 - Empty by default
@@ -118,9 +119,9 @@ $ curl https://registry.npmjs.org
 **Network (allow-only)**:
 - `registry.npmjs.org`, `*.npmjs.org`
 - `registry.yarnpkg.com`
-- `pypi.org`, `crates.io`
+- `pypi.org`, `*.pypi.org`, `crates.io`, `*.crates.io`
 - `github.com`, `*.github.com`
-- `gitlab.com`, `*.gitlab.com`
+- `gitlab.com`, `*.gitlab.com`, `bitbucket.org`, `*.bitbucket.org`
 - `api.openai.com`, `api.anthropic.com`
 - `*.googleapis.com`
 
@@ -243,7 +244,9 @@ Or in any config file:
 The plugin uses two OpenCode hooks:
 
 1. **`tool.execute.before`** — Intercepts bash commands and wraps them with `SandboxManager.wrapWithSandbox()` before execution
-2. **`tool.execute.after`** — Restores the original command in the UI (hides the bwrap wrapper)
+2. **`tool.execute.after`** — Restores the original command on the tool arguments after execution
+
+It also listens to OpenCode events to restore the original command in persisted tool history and clean up sandbox resources when commands finish or are interrupted.
 
 ```
 Agent → bash tool → [plugin wraps command] → sandboxed execution → [plugin restores UI] → Agent
@@ -260,10 +263,6 @@ Sandbox initialization is deferred until the first `bash` command, so the plugin
 ### Fail-open design
 
 If anything goes wrong (sandbox init fails, wrapping fails, platform unsupported), commands run normally without sandbox. The plugin never breaks your workflow.
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, architecture, and guidelines.
 
 ## Related
 
