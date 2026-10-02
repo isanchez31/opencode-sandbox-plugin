@@ -136,9 +136,12 @@ Config files are stored outside the project directory (in `~/.config/opencode-sa
 The plugin searches for configuration in this order (first match wins):
 
 1. **Environment variable** `OPENCODE_SANDBOX_CONFIG` (JSON string)
-2. **Per-project config** `~/.config/opencode-sandbox/projects/<project-name>.json`
-3. **Global config** `~/.config/opencode-sandbox/config.json`
-4. **Built-in defaults**
+2. **Environment variable** `OPENCODE_SANDBOX_CONFIG_PATH` (path to a JSON config file)
+3. **Standard project config** `.opencode/sandbox.json` (inside the project directory)
+4. **Per-project config** `~/.config/opencode-sandbox/projects/<project-name>.json`
+5. **Standard global config** `~/.config/opencode/sandbox.json`
+6. **Legacy global config** `~/.config/opencode-sandbox/config.json`
+7. **Built-in defaults**
 
 The `<project-name>` is the basename of the project directory (e.g., `my-app` for `/home/user/projects/my-app`).
 
