@@ -114,7 +114,7 @@ $ curl https://registry.npmjs.org
 **Filesystem (allow-write)**:
 - Project directory
 - Git worktree (validated — unsafe paths like `/` are rejected)
-- `/tmp`
+- System temp directory (`os.tmpdir()`, `$TMPDIR` on macOS)
 
 **Network (allow-only)**:
 - `registry.npmjs.org`, `*.npmjs.org`
@@ -153,7 +153,7 @@ If `XDG_CONFIG_HOME` is set, it is used instead of `~/.config`.
   "filesystem": {
     "denyRead": ["~/.ssh", "~/.aws/credentials"],
     "allowRead": ["~/.ssh/id_ed25519.pub"],
-    "allowWrite": [".", "/tmp", "/var/data"],
+    "allowWrite": ["${directory}", "${worktree}", "${tmpdir}", "/var/data"],
     "denyWrite": [".env.production"]
   },
   "network": {
@@ -169,6 +169,10 @@ If `XDG_CONFIG_HOME` is set, it is used instead of `~/.config`.
   }
 }
 ```
+
+### Variables in `allowWrite`
+
+Setting `allowWrite` replaces the defaults. To keep them, use `${directory}` (project directory), `${worktree}` (git worktree) and `${tmpdir}` (`os.tmpdir()`). An entry is dropped if its variable is empty or an unsafe path like `/`; use `${worktree:force}` to skip that check.
 
 ### Path precedence
 

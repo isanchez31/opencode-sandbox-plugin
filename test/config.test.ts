@@ -117,6 +117,34 @@ describe("resolveConfig", () => {
     expect(projectCount).toBe(1)
   })
 
+  test("expands variables in allowWrite", () => {
+    const user: SandboxPluginConfig = {
+      filesystem: { allowWrite: ["${directory}", "${worktree}/.cache", "${tmpdir}", "/extra"] },
+    }
+    const config = resolveConfig("/project", "/repo", user)
+    expect(config.filesystem?.allowWrite).toEqual([
+      "/project",
+      "/repo/.cache",
+      os.tmpdir(),
+      "/extra",
+    ])
+  })
+
+  test("drops variables with unsafe, empty or unknown values unless forced", () => {
+    const user: SandboxPluginConfig = {
+      filesystem: {
+        allowWrite: [
+          "${worktree}/a",
+          "${worktree:force}",
+          "${nope}",
+          "${toString}",
+          "${directory}",
+        ],
+      },
+    }
+    expect(resolveConfig("", "/", user).filesystem?.allowWrite).toEqual(["/"])
+  })
+
   test("handles unix socket config", () => {
     const user: SandboxPluginConfig = {
       network: {
