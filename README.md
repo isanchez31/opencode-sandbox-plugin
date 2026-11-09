@@ -6,7 +6,7 @@
 
 An [OpenCode](https://opencode.ai) plugin that sandboxes agent-executed commands using [`@anthropic-ai/sandbox-runtime`](https://github.com/anthropic-experimental/sandbox-runtime).
 
-Every `bash` tool invocation is wrapped with OS-level filesystem and network restrictions — no containers, no VMs, just native OS sandboxing primitives.
+Every agent `bash` (OpenCode V1) or `shell` (V2) tool invocation is wrapped with OS-level filesystem and network restrictions — no containers, no VMs, just native OS sandboxing primitives. Other OpenCode tools, including file tools, are not sandboxed by this plugin.
 
 | Platform | Mechanism |
 |----------|-----------|
@@ -15,6 +15,17 @@ Every `bash` tool invocation is wrapped with OS-level filesystem and network res
 | **Windows** | Not currently supported by OpenCode's command-string hook (commands pass through in `permissive` mode and are blocked in `enforce` mode) |
 
 ## Install
+
+For OpenCode V2 (2.2.6 or newer):
+
+```json
+// opencode.json
+{
+  "plugins": ["opencode-sandbox"]
+}
+```
+
+For OpenCode V1:
 
 ```json
 // opencode.json
@@ -238,6 +249,8 @@ Set `mode` to `enforce` to block `bash` commands whenever sandboxing cannot be a
 }
 ```
 
+In V2, the sandbox runtime shares one network proxy across projects in the same server process. If projects configure different network policies, later commands are blocked even in `permissive` mode rather than run under the wrong policy. Restart the server to apply a changed network policy.
+
 ### Disable
 
 ```bash
@@ -254,6 +267,12 @@ Or in any config file:
 
 ## How it works
 
+OpenCode V2 wraps the shell executable rather than the command string. This keeps the original command visible to OpenCode's permission checks and history. Relative filesystem paths in V2 configuration are resolved against the project's directory. During an active shell-tool call, an unrelated shell creation without the tool's async context is blocked to avoid accidentally running the tool unsandboxed.
+
+If an interrupted V2 shell's exit cannot be confirmed, the plugin defers mount-point cleanup until server exit. This prevents removing a deny rule while a process might still be running.
+
+In OpenCode V1:
+
 The plugin uses two OpenCode hooks:
 
 1. **`tool.execute.before`** — Intercepts bash commands and wraps them with `SandboxManager.wrapWithSandbox()` before execution
@@ -267,7 +286,7 @@ Agent → bash tool → [plugin wraps command] → sandboxed execution → [plug
 
 The AI model interprets sandbox errors (like "Read-only file system" or "Connection blocked") directly from command output — no additional annotation layer needed.
 
-Sandbox initialization is deferred until the first `bash` command, so the plugin does not interfere with OpenCode startup. Plugin diagnostics are sent through OpenCode's structured logger instead of being printed into the TUI. Sandbox violations are correlated with each individual tool call, including concurrent or repeated commands.
+Sandbox initialization is deferred until the first shell command, so the plugin does not interfere with OpenCode startup. Sandbox violations are correlated with each individual tool call, including concurrent or repeated commands.
 
 ### Windows status
 
