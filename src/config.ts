@@ -78,6 +78,20 @@ function isSafeWritePath(p: string): boolean {
   return true
 }
 
+// Expands ${directory}, ${worktree} and ${tmpdir}. Drops the entry if a variable is
+// unknown, empty or unsafe; ${name:force} skips the safety check for that variable.
+function expandWritePath(entry: string, vars: Record<string, string>): string | null {
+  let dropped = false
+  const expanded = entry.replace(/\$\{(\w+)(:force)?\}/g, (match, name: string, force?: string) => {
+    const value = Object.hasOwn(vars, name) ? vars[name] : undefined
+    if (value === undefined)
+      console.warn(`[opencode-sandbox] Unknown variable ${match} in allowWrite`)
+    if (!value || (!force && !isSafeWritePath(value))) dropped = true
+    return value ?? match
+  })
+  return dropped ? null : expanded
+}
+
 export function resolveConfig(
   projectDir: string,
   worktree: string,
@@ -85,12 +99,14 @@ export function resolveConfig(
 ): SandboxRuntimeConfig {
   const homeDir = os.homedir()
 
-  const candidatePaths = [projectDir, worktree, os.tmpdir()].filter(Boolean)
-  const safePaths = candidatePaths.filter((p) => isSafeWritePath(p))
+  const vars = { directory: projectDir, worktree, tmpdir: os.tmpdir() }
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: allowWrite variables
+  const entries = user?.filesystem?.allowWrite ?? ["${directory}", "${worktree}", "${tmpdir}"]
   const seen = new Set<string>()
-  const writePaths =
-    user?.filesystem?.allowWrite ??
-    safePaths.filter((p) => {
+  const writePaths = entries
+    .map((entry) => expandWritePath(entry, vars))
+    .filter((p): p is string => {
+      if (p === null) return false
       const resolved = path.resolve(p)
       if (seen.has(resolved)) return false
       seen.add(resolved)
