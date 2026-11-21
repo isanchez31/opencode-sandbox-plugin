@@ -2,7 +2,13 @@ import { afterAll, beforeEach, describe, expect, test } from "bun:test"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { getConfigDir, loadConfig, resolveConfig, type SandboxPluginConfig } from "../src/config"
+import {
+  getConfigDir,
+  getOpenCodeConfigDir,
+  loadConfig,
+  resolveConfig,
+  type SandboxPluginConfig,
+} from "../src/config"
 
 const PROJECT_DIR = `/tmp/test-project-sandbox-${process.pid}`
 const CONFIG_DIR = `/tmp/test-sandbox-config-${process.pid}`
@@ -144,20 +150,39 @@ describe("getConfigDir", () => {
   })
 })
 
+describe("getOpenCodeConfigDir", () => {
+  test("uses XDG_CONFIG_HOME when set", () => {
+    process.env.XDG_CONFIG_HOME = "/custom/config"
+    expect(getOpenCodeConfigDir()).toBe("/custom/config/opencode")
+    delete process.env.XDG_CONFIG_HOME
+  })
+
+  test("falls back to ~/.config when XDG_CONFIG_HOME is not set", () => {
+    delete process.env.XDG_CONFIG_HOME
+    expect(getOpenCodeConfigDir()).toBe(path.join(os.homedir(), ".config", "opencode"))
+  })
+})
+
 describe("loadConfig", () => {
   const sandboxConfigDir = path.join(CONFIG_DIR, "opencode-sandbox")
   const projectName = path.basename(PROJECT_DIR)
 
   beforeEach(async () => {
     delete process.env.OPENCODE_SANDBOX_CONFIG
+    delete process.env.OPENCODE_SANDBOX_CONFIG_PATH
     process.env.XDG_CONFIG_HOME = CONFIG_DIR
     await fs.rm(CONFIG_DIR, { recursive: true, force: true })
+    await fs.rm(PROJECT_DIR, { recursive: true, force: true })
     await fs.mkdir(path.join(sandboxConfigDir, "projects"), { recursive: true })
+    await fs.mkdir(PROJECT_DIR, { recursive: true })
   })
 
   afterAll(async () => {
     delete process.env.XDG_CONFIG_HOME
+    delete process.env.OPENCODE_SANDBOX_CONFIG
+    delete process.env.OPENCODE_SANDBOX_CONFIG_PATH
     await fs.rm(CONFIG_DIR, { recursive: true, force: true })
+    await fs.rm(PROJECT_DIR, { recursive: true, force: true })
   })
 
   test("returns empty config when no file and no env var", async () => {
@@ -178,6 +203,71 @@ describe("loadConfig", () => {
     expect(config.filesystem?.allowRead).toEqual(["/secret.pub"])
   })
 
+  test("loads config from OPENCODE_SANDBOX_CONFIG_PATH env var", async () => {
+    const customConfigPath = path.join(CONFIG_DIR, "custom-sandbox.json")
+    await fs.writeFile(
+      customConfigPath,
+      JSON.stringify({ filesystem: { denyRead: ["/from-path"] } }),
+    )
+    process.env.OPENCODE_SANDBOX_CONFIG_PATH = customConfigPath
+    const config = await loadConfig(PROJECT_DIR)
+    expect(config.filesystem?.denyRead).toEqual(["/from-path"])
+  })
+
+  test("OPENCODE_SANDBOX_CONFIG takes priority over OPENCODE_SANDBOX_CONFIG_PATH", async () => {
+    const customConfigPath = path.join(CONFIG_DIR, "custom-sandbox.json")
+    await fs.writeFile(
+      customConfigPath,
+      JSON.stringify({ filesystem: { denyRead: ["/from-path"] } }),
+    )
+    process.env.OPENCODE_SANDBOX_CONFIG_PATH = customConfigPath
+    process.env.OPENCODE_SANDBOX_CONFIG = JSON.stringify({
+      filesystem: { denyRead: ["/from-env"] },
+    })
+    const config = await loadConfig(PROJECT_DIR)
+    expect(config.filesystem?.denyRead).toEqual(["/from-env"])
+  })
+
+  test("OPENCODE_SANDBOX_CONFIG_PATH takes priority over per-project config", async () => {
+    const customConfigPath = path.join(CONFIG_DIR, "custom-sandbox.json")
+    await fs.writeFile(
+      customConfigPath,
+      JSON.stringify({ filesystem: { denyRead: ["/from-path"] } }),
+    )
+    process.env.OPENCODE_SANDBOX_CONFIG_PATH = customConfigPath
+    await fs.mkdir(path.join(PROJECT_DIR, ".opencode"), { recursive: true })
+    await fs.writeFile(
+      path.join(PROJECT_DIR, ".opencode", "sandbox.json"),
+      JSON.stringify({ filesystem: { denyRead: ["/from-project"] } }),
+    )
+    const config = await loadConfig(PROJECT_DIR)
+    expect(config.filesystem?.denyRead).toEqual(["/from-path"])
+  })
+
+  test("loads standard per-project config from .opencode/sandbox.json", async () => {
+    await fs.mkdir(path.join(PROJECT_DIR, ".opencode"), { recursive: true })
+    await fs.writeFile(
+      path.join(PROJECT_DIR, ".opencode", "sandbox.json"),
+      JSON.stringify({ network: { allowedDomains: ["standard-project.com"] } }),
+    )
+    const config = await loadConfig(PROJECT_DIR)
+    expect(config.network?.allowedDomains).toEqual(["standard-project.com"])
+  })
+
+  test("standard per-project config takes priority over legacy project config", async () => {
+    await fs.mkdir(path.join(PROJECT_DIR, ".opencode"), { recursive: true })
+    await fs.writeFile(
+      path.join(PROJECT_DIR, ".opencode", "sandbox.json"),
+      JSON.stringify({ filesystem: { denyRead: ["/from-standard-project"] } }),
+    )
+    await fs.writeFile(
+      path.join(sandboxConfigDir, "projects", `${projectName}.json`),
+      JSON.stringify({ filesystem: { denyRead: ["/from-legacy-project"] } }),
+    )
+    const config = await loadConfig(PROJECT_DIR)
+    expect(config.filesystem?.denyRead).toEqual(["/from-standard-project"])
+  })
+
   test("loads per-project config", async () => {
     await fs.writeFile(
       path.join(sandboxConfigDir, "projects", `${projectName}.json`),
@@ -185,6 +275,32 @@ describe("loadConfig", () => {
     )
     const config = await loadConfig(PROJECT_DIR)
     expect(config.network?.allowedDomains).toEqual(["example.com"])
+  })
+
+  test("loads standard global config from opencode/sandbox.json", async () => {
+    const openCodeConfigDir = path.join(CONFIG_DIR, "opencode")
+    await fs.mkdir(openCodeConfigDir, { recursive: true })
+    await fs.writeFile(
+      path.join(openCodeConfigDir, "sandbox.json"),
+      JSON.stringify({ filesystem: { denyRead: ["/from-standard-global"] } }),
+    )
+    const config = await loadConfig(PROJECT_DIR)
+    expect(config.filesystem?.denyRead).toEqual(["/from-standard-global"])
+  })
+
+  test("standard global config takes priority over legacy global config", async () => {
+    const openCodeConfigDir = path.join(CONFIG_DIR, "opencode")
+    await fs.mkdir(openCodeConfigDir, { recursive: true })
+    await fs.writeFile(
+      path.join(openCodeConfigDir, "sandbox.json"),
+      JSON.stringify({ filesystem: { denyRead: ["/from-standard-global"] } }),
+    )
+    await fs.writeFile(
+      path.join(sandboxConfigDir, "config.json"),
+      JSON.stringify({ filesystem: { denyRead: ["/from-legacy-global"] } }),
+    )
+    const config = await loadConfig(PROJECT_DIR)
+    expect(config.filesystem?.denyRead).toEqual(["/from-standard-global"])
   })
 
   test("loads global config", async () => {
@@ -223,6 +339,14 @@ describe("loadConfig", () => {
 
   test("handles invalid JSON in env var gracefully", async () => {
     process.env.OPENCODE_SANDBOX_CONFIG = "not-valid-json"
+    const config = await loadConfig(PROJECT_DIR)
+    expect(config).toEqual({})
+  })
+
+  test("handles invalid JSON in OPENCODE_SANDBOX_CONFIG_PATH gracefully", async () => {
+    const customConfigPath = path.join(CONFIG_DIR, "broken.json")
+    await fs.writeFile(customConfigPath, "broken{json")
+    process.env.OPENCODE_SANDBOX_CONFIG_PATH = customConfigPath
     const config = await loadConfig(PROJECT_DIR)
     expect(config).toEqual({})
   })
