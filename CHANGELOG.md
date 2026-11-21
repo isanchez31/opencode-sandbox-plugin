@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0](https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.6.0...v0.7.0) (2026-11-21)
+
+
+### Added
+
+* add OpenCode V2 plugin support ([46c1563](https://github.com/isanchez31/opencode-sandbox-plugin/commit/46c156322271843996e9579bca0b3523c496cce9))
+* add OpenCode V2 plugin support ([fa7c7af](https://github.com/isanchez31/opencode-sandbox-plugin/commit/fa7c7aff2bd6fe4975ab4f1b87aa4e512cf74a86))
+* **config:** support variables in allowWrite ([27fcdf0](https://github.com/isanchez31/opencode-sandbox-plugin/commit/27fcdf0bfb29156d24cc277c03ed642a6a76c0d8))
+* **config:** support variables in allowWrite ([9da2121](https://github.com/isanchez31/opencode-sandbox-plugin/commit/9da2121d586f0b94bbf5b9ebaf5bb2df59bc6a32)), closes [#94](https://github.com/isanchez31/opencode-sandbox-plugin/issues/94)
+* support standard opencode config locations and custom path ([64bf2bf](https://github.com/isanchez31/opencode-sandbox-plugin/commit/64bf2bf5e7fb8636682747dc1f7503f5c0ba4837))
+* support standard OpenCode config locations and custom path ([c4722d2](https://github.com/isanchez31/opencode-sandbox-plugin/commit/c4722d2a75fba331e38b2b765e69b861c5b3d45c))
+
 ## [0.6.0](https://github.com/isanchez31/opencode-sandbox-plugin/compare/v0.5.3...v0.6.0) (2026-09-19)
 
 
