@@ -10,8 +10,8 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/v2.d.ts",
+      "import": "./dist/v2.js"
     }
   },
   "files": [
@@ -20,7 +20,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "bun build ./src/index.ts --outdir dist --target node --format esm --external @anthropic-ai/sandbox-runtime --external @opencode-ai/plugin && bun x tsc --emitDeclarationOnly --declaration --outDir dist",
+    "build": "bun build ./src/index.ts ./src/v2.ts --outdir dist --target node --format esm --external @anthropic-ai/sandbox-runtime --external @opencode-ai/plugin --external @opencode/plugin && bun x tsc --emitDeclarationOnly --declaration --outDir dist",
     "dev": "bun run --watch src/index.ts",
     "test": "bun test",
     "test:coverage": "bun test --coverage",
@@ -30,7 +30,8 @@
     "typecheck": "tsc --noEmit",
     "check": "biome check .",
     "check:fix": "biome check --write .",
-    "prepublishOnly": "bun run build"
+    "prepublishOnly": "bun run build",
+    "test:security": "bun test/security.integration.ts"
   },
   "keywords": [
     "opencode",
@@ -61,12 +62,20 @@
     "@anthropic-ai/sandbox-runtime": "^0.0.76"
   },
   "peerDependencies": {
-    "@opencode-ai/plugin": ">=1.0.0"
+    "@opencode-ai/plugin": ">=1.0.0",
+    "@opencode/plugin": ">=2.2.6"
+  },
+  "peerDependenciesMeta": {
+    "@opencode/plugin": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",
     "@opencode-ai/plugin": "^1.2.1",
     "@opencode-ai/sdk": "^1.2.1",
+    "@opencode/plugin": "2.2.6",
+    "@opencode/sdk": "2.2.6",
     "@types/bun": "^1.3.9",
     "typescript": "^7.0.2"
   }

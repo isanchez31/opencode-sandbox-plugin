@@ -34,8 +34,12 @@ const makeCtx = (
   $: (() => {}) as any,
 })
 
+// Keep the developer's real ~/.config/opencode-sandbox/config.json out of the tests.
+const isolatedConfigHome = `/tmp/opencode-sandbox-test-config-${process.pid}`
+
 describe("SandboxPlugin", () => {
   beforeEach(() => {
+    process.env.XDG_CONFIG_HOME = isolatedConfigHome
     mockInitialize.mockClear()
     mockWrapWithSandbox.mockClear()
     mockCleanupAfterCommand.mockClear()
